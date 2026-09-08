@@ -9,6 +9,7 @@
   "scripts": {
     "migrate": "tsx src/db/migrate.ts",
     "migrate:status": "tsx src/db/migrate.ts --status",
+    "dev": "node scripts/dev.mjs",
     "dev:indexer": "tsx watch src/indexer/index.ts",
     "dev:api": "tsx watch src/api/index.ts",
     "build": "tsc -p tsconfig.json",

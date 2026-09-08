@@ -32,11 +32,12 @@ cp .env.example .env       # defaults point at testnet (chain 46630)
 docker compose up -d       # local postgres + redis  (skip if using Supabase)
 npm install
 npm run migrate            # applies migrations/*.sql once each, in order
-npm run dev:indexer        # catches up from testnet tip, then follows head
-npm run dev:api            # second terminal
-curl localhost:3001/health
+npm run dev                # indexer + API together (prefixed output, Ctrl+C stops both)
 open http://localhost:3001/   # test console (wallet tx explorer + token lookup)
 ```
+
+Run them apart instead — `npm run dev:indexer` / `npm run dev:api` in two terminals —
+if you want to restart one without the other.
 
 ### Using Supabase instead of local Postgres
 
