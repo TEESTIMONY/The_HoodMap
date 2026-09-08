@@ -29,7 +29,7 @@ Node.js 20+ + TypeScript, viem, Fastify, PostgreSQL, Redis.
 
 ```bash
 cp .env.example .env       # defaults point at testnet (chain 46630)
-docker compose up -d       # postgres + redis
+docker compose up -d       # local postgres + redis  (skip if using Supabase)
 npm install
 npm run migrate            # applies migrations/*.sql once each, in order
 npm run dev:indexer        # catches up from testnet tip, then follows head
@@ -37,6 +37,21 @@ npm run dev:api            # second terminal
 curl localhost:3001/health
 open http://localhost:3001/   # test console (wallet tx explorer + token lookup)
 ```
+
+### Using Supabase instead of local Postgres
+
+Set these three in `.env` (Redis isn't used in Phase 1):
+
+```
+DATABASE_URL=postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+DATABASE_SSL=no-verify
+DATABASE_POOL_MAX=5
+```
+
+Use the **Session pooler** string from Supabase → Connect (IPv4, port 5432, safe
+for the indexer's transactions). Avoid the Transaction pooler (6543) and the
+direct `db.<ref>.supabase.co` host (IPv6-only without the paid add-on). Then
+`npm run migrate` and carry on — no `docker compose` needed.
 
 Production: `npm run build` then `npm run start:migrate && npm run start:api`
 (and `npm run start:indexer` as its own process).

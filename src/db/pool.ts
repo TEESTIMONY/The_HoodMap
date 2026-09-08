@@ -1,11 +1,12 @@
 import pg from "pg";
 import { config } from "../config/index.js";
+import { pgConnectionConfig } from "./connection.js";
 
 const { Pool } = pg;
 
 export const pool = new Pool({
-  connectionString: config.DATABASE_URL,
-  max: 10,
+  ...pgConnectionConfig(),
+  max: config.DATABASE_POOL_MAX,
   idleTimeoutMillis: 30_000,
 });
 

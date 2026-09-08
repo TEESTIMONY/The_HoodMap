@@ -12,7 +12,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { config } from "../config/index.js";
+import { pgConnectionConfig } from "./connection.js";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "migrations");
 
@@ -36,7 +36,7 @@ async function appliedSet(client: pg.Client): Promise<Set<string>> {
 }
 
 async function run(statusOnly: boolean): Promise<void> {
-  const client = new pg.Client({ connectionString: config.DATABASE_URL });
+  const client = new pg.Client(pgConnectionConfig());
   await client.connect();
   try {
     await ensureRegistry(client);
