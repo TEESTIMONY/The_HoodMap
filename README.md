@@ -19,6 +19,8 @@ Node.js 20+ + TypeScript, viem, Fastify, PostgreSQL, Redis.
   - graceful SIGINT/SIGTERM shutdown
 - `src/db/` — Postgres pool, raw-layer persistence, indexer checkpoint repo
 - `src/api/` — minimal Fastify API (health, wallet summary, wallet transactions, token summary)
+- `web/index.html` — dependency-free test console served at `GET /` (health pill, wallet
+  tx explorer, token lookup) for eyeballing Phase 1 output
 - `src/dex/adapter.ts` — the DEX plugin interface Phase 2 implements for Uniswap V2/V3/V4 + Pleiades
 - `src/lib/` — address normalization + bounded-concurrency helper
 - `docker-compose.yml` — local Postgres + Redis
@@ -33,6 +35,7 @@ npm run migrate            # applies migrations/*.sql once each, in order
 npm run dev:indexer        # catches up from testnet tip, then follows head
 npm run dev:api            # second terminal
 curl localhost:3001/health
+open http://localhost:3001/   # test console (wallet tx explorer + token lookup)
 ```
 
 Production: `npm run build` then `npm run start:migrate && npm run start:api`

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { config } from "../config/index.js";
@@ -25,13 +26,29 @@ app.setErrorHandler((err, _req, reply) => {
   reply.status(status).send({ error: status >= 500 ? "internal_error" : err.message });
 });
 
-app.get("/health", async () => {
-  const state = await getOrCreateIndexerState();
-  return {
-    status: "ok",
-    chainId: config.CHAIN_ID,
-    indexedThroughBlock: state.lastProcessedBlock.toString(),
-  };
+// Minimal Phase 1 test console. Served from the API so there's no separate
+// origin / CORS story. Read per-request so editing the HTML doesn't need a restart.
+const consolePath = new URL("../../web/index.html", import.meta.url);
+app.get("/", async (_req, reply) => {
+  const html = await readFile(consolePath, "utf8");
+  return reply.type("text/html").send(html);
+});
+
+app.get("/health", async (_req, reply) => {
+  try {
+    const state = await getOrCreateIndexerState();
+    return {
+      status: "ok",
+      chainId: config.CHAIN_ID,
+      db: true,
+      indexedThroughBlock: state.lastProcessedBlock.toString(),
+    };
+  } catch (err) {
+    // API is up but its datastore isn't reachable — report it rather than 500,
+    // so the test console can show "API up / DB down".
+    logger.warn({ err }, "health check: database unreachable");
+    return reply.status(503).send({ status: "degraded", chainId: config.CHAIN_ID, db: false });
+  }
 });
 
 app.get<{ Params: { address: string } }>("/api/v1/wallets/:address", async (req, reply) => {

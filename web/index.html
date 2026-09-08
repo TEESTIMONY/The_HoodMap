@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HoodMap — Phase 1 test console</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
+    --muted: #8b949e; --accent: #2f81f7; --green: #3fb950; --red: #f85149; --amber: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+    border: 1px solid var(--border); border-radius: 999px; font-size: 12px; color: var(--muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--green); } .dot.bad { background: var(--red); }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px; display: grid; gap: 20px; }
+  .panel { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .panel > h2 {
+    margin: 0; padding: 12px 16px; font-size: 13px; font-weight: 600;
+    border-bottom: 1px solid var(--border); color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+  }
+  .body { padding: 16px; display: grid; gap: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input {
+    flex: 1; min-width: 260px; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font: inherit;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--accent); color: #fff; font: inherit; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; color: var(--text); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; font-size: 13px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; word-break: break-all; }
+  .note { color: var(--muted); font-size: 12px; }
+  .err { color: var(--red); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+  td.mono { color: var(--muted); }
+  .scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+  .tag { padding: 1px 6px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border); }
+  .tag.in { color: var(--green); border-color: var(--green); }
+  .tag.out { color: var(--amber); border-color: var(--amber); }
+  .tag.ok { color: var(--green); } .tag.fail { color: var(--red); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>HoodMap · Phase 1 test console</h1>
+  <span class="pill"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span></span>
+  <span class="pill">chain <span id="chainId">—</span></span>
+  <span class="pill">indexed block <span id="indexedBlock">—</span></span>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Wallet</h2>
+    <div class="body">
+      <div class="row">
+        <input id="walletInput" placeholder="0x wallet address" spellcheck="false" />
+        <button id="walletBtn">Look up</button>
+      </div>
+      <div id="walletSummary"></div>
+      <div id="walletTxWrap"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Token <span class="note">(404 until Phase 2 populates tokens)</span></h2>
+    <div class="body">
+      <div class="row">
+        <input id="tokenInput" placeholder="0x token contract address" spellcheck="false" />
+        <button id="tokenBtn">Look up</button>
+      </div>
+      <div id="tokenResult"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const explorerBase = "https://explorer.testnet.chain.robinhood.com";
+
+async function api(path) {
+  const res = await fetch(path);
+  const text = await res.text();
+  let json;
+  try { json = text ? JSON.parse(text) : null; } catch { json = { error: text }; }
+  return { ok: res.ok, status: res.status, json };
+}
+
+function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function short(a) { return a ? a.slice(0, 8) + "…" + a.slice(-6) : "—"; }
+function weiToEth(v) {
+  if (v == null) return "0";
+  const s = BigInt(v).toString().padStart(19, "0");
+  const whole = s.slice(0, -18).replace(/^0+(?=\d)/, "") || "0";
+  const frac = s.slice(-18).replace(/0+$/, "");
+  return frac ? `${whole}.${frac.slice(0, 6)}` : whole;
+}
+function ts(t) { return t ? new Date(t).toISOString().replace("T", " ").slice(0, 19) : "—"; }
+
+/* ---- health poll ---- */
+async function pollHealth() {
+  const dot = $("statusDot"), txt = $("statusText");
+  let json = null;
+  try { ({ json } = await api("/health")); } catch { json = null; }
+  if (json && json.status) {
+    $("chainId").textContent = json.chainId ?? "—";
+    if (json.db === false) {
+      dot.className = "dot bad"; txt.textContent = "API up · DB unreachable";
+      $("indexedBlock").textContent = "—";
+    } else {
+      dot.className = "dot ok"; txt.textContent = json.status;
+      $("indexedBlock").textContent = json.indexedThroughBlock ?? "—";
+    }
+  } else {
+    dot.className = "dot bad"; txt.textContent = "API unreachable";
+  }
+}
+pollHealth();
+setInterval(pollHealth, 4000);
+
+/* ---- wallet ---- */
+let walletTxs = [];
+let walletAddr = null;
+
+async function lookupWallet() {
+  const addr = $("walletInput").value.trim().toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(addr)) {
+    $("walletSummary").innerHTML = `<div class="err">Not a valid 0x address.</div>`;
+    $("walletTxWrap").innerHTML = ""; return;
+  }
+  walletAddr = addr; walletTxs = [];
+  $("walletBtn").disabled = true;
+  $("walletSummary").innerHTML = `<div class="note">loading…</div>`;
+  $("walletTxWrap").innerHTML = "";
+
+  const summary = await api(`/api/v1/wallets/${addr}`);
+  if (summary.ok) {
+    const r = summary.json;
+    $("walletSummary").innerHTML = `<dl class="kv">
+      <dt>realized pnl</dt><dd>${esc(r.realized_pnl_usd ?? r.realized_pnl ?? "—")}</dd>
+      <dt>unrealized pnl</dt><dd>${esc(r.unrealized_pnl_usd ?? r.unrealized_pnl ?? "—")}</dd>
+      <dt>trades</dt><dd>${esc(r.trade_count ?? "—")}</dd>
+      <dt>win rate</dt><dd>${esc(r.win_rate ?? "—")}</dd>
+      <dt>pnl engine</dt><dd>${esc(r.pnl_engine_version ?? "—")}</dd>
+    </dl>`;
+  } else if (summary.status === 404) {
+    $("walletSummary").innerHTML = `<div class="note">No analytics summary yet — <code>${esc(summary.json?.error || "not_indexed_yet")}</code>. Wallet PnL is Phase 3; raw transactions below still work.</div>`;
+  } else {
+    $("walletSummary").innerHTML = `<div class="err">${esc(summary.json?.error || summary.status)}</div>`;
+  }
+
+  await loadMoreTxs();
+  $("walletBtn").disabled = false;
+}
+
+async function loadMoreTxs() {
+  const before = walletTxs.length ? walletTxs[walletTxs.length - 1].block_number : "";
+  const q = new URLSearchParams({ limit: "25" });
+  if (before) q.set("before", before);
+  const res = await api(`/api/v1/wallets/${walletAddr}/transactions?${q}`);
+  if (!res.ok) {
+    $("walletTxWrap").innerHTML = `<div class="err">tx query failed: ${esc(res.json?.error || res.status)}</div>`;
+    return;
+  }
+  walletTxs = walletTxs.concat(res.json.transactions || []);
+  renderTxs(res.json.transactions?.length === 25);
+}
+
+function renderTxs(more) {
+  if (!walletTxs.length) {
+    $("walletTxWrap").innerHTML = `<div class="note">No transactions found for this address in the indexed range.</div>`;
+    return;
+  }
+  const rows = walletTxs.map((t) => {
+    const dir = t.from_address === walletAddr ? `<span class="tag out">OUT</span>` : `<span class="tag in">IN</span>`;
+    const st = String(t.status) === "1" || t.status === true
+      ? `<span class="tag ok">ok</span>` : `<span class="tag fail">fail</span>`;
+    return `<tr>
+      <td class="mono">${ts(t.timestamp)}</td>
+      <td class="mono">${esc(t.block_number)}</td>
+      <td>${dir}</td>
+      <td><a href="${explorerBase}/address/${t.from_address}" target="_blank">${short(t.from_address)}</a></td>
+      <td><a href="${explorerBase}/address/${t.to_address}" target="_blank">${short(t.to_address)}</a></td>
+      <td>${weiToEth(t.value)} ETH</td>
+      <td class="mono">${esc(t.gas_used ?? "—")}</td>
+      <td>${st}</td>
+      <td><a href="${explorerBase}/tx/${t.hash}" target="_blank">${short(t.hash)}</a></td>
+    </tr>`;
+  }).join("");
+  $("walletTxWrap").innerHTML = `
+    <div class="scroll"><table>
+      <thead><tr><th>time (UTC)</th><th>block</th><th>dir</th><th>from</th><th>to</th><th>value</th><th>gas used</th><th>status</th><th>tx</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="row" style="margin-top:10px">
+      <span class="note">${walletTxs.length} loaded</span>
+      ${more ? `<button class="ghost" id="moreBtn">Load more</button>` : `<span class="note">— end —</span>`}
+    </div>`;
+  if (more) $("moreBtn").onclick = () => { $("moreBtn").disabled = true; loadMoreTxs(); };
+}
+
+/* ---- token ---- */
+async function lookupToken() {
+  const addr = $("tokenInput").value.trim().toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(addr)) {
+    $("tokenResult").innerHTML = `<div class="err">Not a valid 0x address.</div>`; return;
+  }
+  $("tokenBtn").disabled = true;
+  $("tokenResult").innerHTML = `<div class="note">loading…</div>`;
+  const res = await api(`/api/v1/tokens/${addr}`);
+  if (res.ok) {
+    const r = res.json;
+    $("tokenResult").innerHTML = `<dl class="kv">
+      <dt>symbol</dt><dd>${esc(r.symbol ?? "—")}</dd>
+      <dt>name</dt><dd>${esc(r.name ?? "—")}</dd>
+      <dt>decimals</dt><dd>${esc(r.decimals ?? "—")}</dd>
+      <dt>price</dt><dd>${esc(r.price ?? "—")}</dd>
+      <dt>market cap</dt><dd>${esc(r.market_cap ?? "null (unknown supply)")}</dd>
+      <dt>fdv</dt><dd>${esc(r.fdv ?? "—")}</dd>
+      <dt>liquidity</dt><dd>${esc(r.liquidity_usd ?? "—")}</dd>
+      <dt>price confidence</dt><dd>${esc(r.price_confidence ?? "—")}</dd>
+    </dl>`;
+  } else if (res.status === 404) {
+    $("tokenResult").innerHTML = `<div class="note">Not found — <code>${esc(res.json?.error || "token_not_found")}</code>. Expected in Phase 1: token discovery lands in Phase 2.</div>`;
+  } else {
+    $("tokenResult").innerHTML = `<div class="err">${esc(res.json?.error || res.status)}</div>`;
+  }
+  $("tokenBtn").disabled = false;
+}
+
+$("walletBtn").onclick = lookupWallet;
+$("walletInput").addEventListener("keydown", (e) => { if (e.key === "Enter") lookupWallet(); });
+$("tokenBtn").onclick = lookupToken;
+$("tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") lookupToken(); });
+</script>
+</body>
+</html>
