@@ -45,11 +45,13 @@ export async function backfillWalletTrades(
   }
 
   const candidates = [...erc20Hashes];
-  // Skip txs we've already decoded a swap for — but NOT txs merely present in
-  // `transactions`, since an earlier partial run may have missed their swaps.
+  // Skip txs we've already decoded a swap *for this wallet*. A tx decoded only
+  // for someone else (e.g. attributed to a bundler by the indexer) is re-run so
+  // we can re-attribute it.
   const decodedRows = await query<{ transaction_hash: string }>(
-    `SELECT DISTINCT transaction_hash FROM swaps WHERE chain_id = $1 AND transaction_hash = ANY($2)`,
-    [config.CHAIN_ID, candidates]
+    `SELECT DISTINCT transaction_hash FROM swaps
+      WHERE chain_id = $1 AND wallet_address = $2 AND transaction_hash = ANY($3)`,
+    [config.CHAIN_ID, address, candidates]
   );
   const decoded = new Set(decodedRows.rows.map((r) => r.transaction_hash));
 
@@ -112,8 +114,12 @@ export async function backfillWalletTrades(
   }
 
   await insertTransactions(txRows);
-  // Only swaps matter for PnL — skip token_transfers to keep the scan fast.
-  const summary = await processContextualLogs(logs, maxBlock, { includeTransfers: false });
+  // Only swaps matter for PnL — skip writing token_transfers. Attribute swaps to
+  // this wallet (tx.from is a bundler for smart-account wallets).
+  const summary = await processContextualLogs(logs, maxBlock, {
+    includeTransfers: false,
+    attributeSwapsTo: address,
+  });
   await touch(address, maxBlock);
 
   logger.info(

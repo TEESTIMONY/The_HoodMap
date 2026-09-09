@@ -111,12 +111,13 @@ export async function decodeBlock(
 export async function processContextualLogs(
   logs: Contextualised[],
   atBlock: bigint,
-  opts: { includeTransfers?: boolean } = {}
+  opts: { includeTransfers?: boolean; attributeSwapsTo?: string } = {}
 ): Promise<DecodeSummary> {
   const includeTransfers = opts.includeTransfers ?? true;
-  const transferLogs = includeTransfers
-    ? logs.filter(({ log }) => log.topics[0] === ERC20_TRANSFER_TOPIC)
-    : [];
+  const attributeTo = opts.attributeSwapsTo?.toLowerCase();
+  // Always parse Transfer logs (needed for swap attribution); write them only
+  // when asked.
+  const transferLogs = logs.filter(({ log }) => log.topics[0] === ERC20_TRANSFER_TOPIC);
   const swapLogs = logs.filter(({ log }) => log.topics[0] && watchedSwapTopics.has(log.topics[0]));
   const liquidityLogs = logs.filter(
     ({ log }) => log.topics[0] && watchedLiquidityTopics.has(log.topics[0])
@@ -155,19 +156,40 @@ export async function processContextualLogs(
   const transfers = transferLogs
     .map(({ log, ctx }) => parseTransfer(log, ctx))
     .filter((t): t is ParsedTransfer => t !== null);
+  // Load metadata (decimals!) for every token we'll touch — transfer tokens AND
+  // pool tokens. resolvePools/resolveV4Pools skip this for DB-cached pools, so
+  // without it `decimalsOf` falls back to 18 and pricing is off by 10^(18-dec).
   await ensureTokens(
-    transfers.map((t) => t.token),
+    [...transfers.map((t) => t.token), ...[...pools.values()].flatMap((p) => [p.token0, p.token1])],
     atBlock
   );
 
   // ---- decode ----
+  // On a wallet scan the tx.from is often a bundler/relayer (ERC-4337 / EIP-7702
+  // smart accounts), not the trader. The caller only feeds us receipts for txs
+  // where the target wallet moved a token, and `reconstructTrades` nets per tx,
+  // so attribute every swap in the set to that wallet. Only keep txs where the
+  // wallet actually touched a token (guards against a shared-bundle tx where the
+  // wallet's own op was a plain transfer).
+  const walletTxs = new Set<string>();
+  if (attributeTo) {
+    for (const t of transfers) {
+      if (t.from === attributeTo || t.to === attributeTo) walletTxs.add(t.txHash);
+    }
+  }
+
   const swaps: { swap: DecodedSwap; dex: string }[] = [];
   for (const { log, ctx } of swapLogs) {
     const pool = pools.get(poolKey(log));
     const decoder = swapDecoderForTopic(log.topics[0]);
     if (!pool || !decoder) continue;
     const swap = decoder.decodeSwap(log, pool, ctx);
-    if (swap) swaps.push({ swap, dex: pool.dex });
+    if (!swap) continue;
+    if (attributeTo) {
+      if (!walletTxs.has(swap.txHash)) continue;
+      swap.walletAddress = attributeTo as `0x${string}`;
+    }
+    swaps.push({ swap, dex: pool.dex });
   }
 
   const liquidityEvents: { event: DecodedLiquidityEvent; dex: string }[] = [];
@@ -186,20 +208,23 @@ export async function processContextualLogs(
 
   // ---- write (one txn; reorg rewind covers these tables) ----
   await withTransaction(async (client) => {
-    await insertTransfersBatch(client, transfers);
+    if (includeTransfers) await insertTransfersBatch(client, transfers);
     await insertSwapsBatch(
       client,
       swaps.map(({ swap, dex }) => {
         const p = pricing.get(`${swap.txHash}:${swap.logIndex}`);
         return { swap, dex, usdValue: p?.usdValue ?? null, price: p?.price ?? null };
-      })
+      }),
+      // On a targeted wallet scan, our attribution beats the indexer's tx.from
+      // guess, so overwrite wallet_address on conflict.
+      { updateWallet: !!attributeTo }
     );
     await upsertTradersBatch(client, swaps.map((s) => s.swap));
     for (const { event, dex } of liquidityEvents) await insertLiquidityEvent(client, event, dex);
   });
 
   return {
-    transfers: transfers.length,
+    transfers: includeTransfers ? transfers.length : 0,
     swaps: swaps.length,
     liquidityEvents: liquidityEvents.length,
   };
@@ -228,8 +253,13 @@ async function insertTransfersBatch(client: PoolClient, rows: ParsedTransfer[]):
 
 async function insertSwapsBatch(
   client: PoolClient,
-  rows: { swap: DecodedSwap; dex: string; usdValue: number | null; price: number | null }[]
+  rows: { swap: DecodedSwap; dex: string; usdValue: number | null; price: number | null }[],
+  opts: { updateWallet?: boolean } = {}
 ): Promise<void> {
+  const onConflict = opts.updateWallet
+    ? `ON CONFLICT (chain_id, transaction_hash, log_index)
+         DO UPDATE SET wallet_address = EXCLUDED.wallet_address`
+    : `ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING`;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
     const vals: unknown[] = [config.CHAIN_ID];
@@ -246,7 +276,7 @@ async function insertSwapsBatch(
          (chain_id, transaction_hash, log_index, pool_address, dex, wallet_address,
           token_in, token_out, amount_in, amount_out, usd_value, price, block_number, timestamp)
        VALUES ${tuples.join(",")}
-       ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING`,
+       ${onConflict}`,
       vals
     );
   }
