@@ -1,6 +1,6 @@
 import type { Log } from "viem";
 import { logsClient } from "../indexer/rpcClient.js";
-import { query } from "../db/pool.js";
+import { pool, query } from "../db/pool.js";
 import { config } from "../config/index.js";
 import { logger } from "../config/logger.js";
 import { normalizeAddress } from "../lib/address.js";
@@ -50,7 +50,9 @@ async function setCursor(block: bigint): Promise<void> {
   await query(
     `INSERT INTO backfill_state (chain_id, kind, last_block, updated_at)
      VALUES ($1, $2, $3, now())
-     ON CONFLICT (chain_id, kind) DO UPDATE SET last_block = EXCLUDED.last_block, updated_at = now()`,
+     ON CONFLICT (chain_id, kind) DO UPDATE SET
+       last_block = GREATEST(backfill_state.last_block, EXCLUDED.last_block),
+       updated_at = now()`,
     [config.CHAIN_ID, BACKFILL_KIND, block.toString()]
   );
 }
@@ -92,7 +94,32 @@ function poolFromLog(log: Log & { eventName?: string; args?: Record<string, unkn
  *
  * Runs once at indexer startup and is available as `npm run backfill:pools`.
  */
+const ADVISORY_LOCK_KEY = 918_273_641; // arbitrary, stable
+
 export async function backfillPools(): Promise<{ pools: number; scannedTo: bigint }> {
+  // One scanner at a time — the indexer auto-runs this and a human might also
+  // `npm run backfill:pools`. The advisory lock is session-scoped, so it must be
+  // held on a dedicated client for the whole run (pool.query() hops connections).
+  const lockClient = await pool.connect();
+  const held = await lockClient.query<{ locked: boolean }>(
+    "SELECT pg_try_advisory_lock($1) AS locked",
+    [ADVISORY_LOCK_KEY]
+  );
+  if (!held.rows[0]?.locked) {
+    lockClient.release();
+    logger.info("pool backfill: another scan holds the lock — skipping");
+    return { pools: 0, scannedTo: 0n };
+  }
+
+  try {
+    return await runBackfill();
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock($1)", [ADVISORY_LOCK_KEY]).catch(() => undefined);
+    lockClient.release();
+  }
+}
+
+async function runBackfill(): Promise<{ pools: number; scannedTo: bigint }> {
   const tip = await logsClient.getBlockNumber();
   let from = (await getCursor()) + 1n;
   if (from > tip) return { pools: 0, scannedTo: tip };
