@@ -99,7 +99,24 @@ export async function decodeBlock(
     }
   }
 
-  const transferLogs = logs.filter(({ log }) => log.topics[0] === ERC20_TRANSFER_TOPIC);
+  return processContextualLogs(logs, block.number);
+}
+
+/**
+ * The decode core: given already-contextualised logs (from a full block, or a
+ * targeted set of receipts during a wallet backfill), discover tokens/pools and
+ * write token_transfers / swaps / liquidity_events. `atBlock` is only used to
+ * stamp `created_block` on newly discovered entities.
+ */
+export async function processContextualLogs(
+  logs: Contextualised[],
+  atBlock: bigint,
+  opts: { includeTransfers?: boolean } = {}
+): Promise<DecodeSummary> {
+  const includeTransfers = opts.includeTransfers ?? true;
+  const transferLogs = includeTransfers
+    ? logs.filter(({ log }) => log.topics[0] === ERC20_TRANSFER_TOPIC)
+    : [];
   const swapLogs = logs.filter(({ log }) => log.topics[0] && watchedSwapTopics.has(log.topics[0]));
   const liquidityLogs = logs.filter(
     ({ log }) => log.topics[0] && watchedLiquidityTopics.has(log.topics[0])
@@ -125,13 +142,13 @@ export async function decodeBlock(
     .map(({ log }) => parseV4Initialize(log))
     .filter((p): p is NonNullable<typeof p> => p !== null);
   if (newV4.length) {
-    await ensureTokens(newV4.flatMap((p) => [p.token0, p.token1]), block.number);
-    await persistV4Pools(newV4, block.number);
+    await ensureTokens(newV4.flatMap((p) => [p.token0, p.token1]), atBlock);
+    await persistV4Pools(newV4, atBlock);
   }
 
   const [v2v3Pools, v4Pools] = await Promise.all([
-    resolvePools(v2v3Addrs, block.number),
-    resolveV4Pools(v4Ids, block.number),
+    resolvePools(v2v3Addrs, atBlock),
+    resolveV4Pools(v4Ids, atBlock),
   ]);
   const pools = new Map([...v2v3Pools, ...v4Pools]);
 
@@ -140,7 +157,7 @@ export async function decodeBlock(
     .filter((t): t is ParsedTransfer => t !== null);
   await ensureTokens(
     transfers.map((t) => t.token),
-    block.number
+    atBlock
   );
 
   // ---- decode ----
@@ -169,12 +186,15 @@ export async function decodeBlock(
 
   // ---- write (one txn; reorg rewind covers these tables) ----
   await withTransaction(async (client) => {
-    for (const t of transfers) await insertTransfer(client, t);
-    for (const { swap, dex } of swaps) {
-      const p = pricing.get(`${swap.txHash}:${swap.logIndex}`);
-      await insertSwap(client, swap, dex, p?.usdValue ?? null, p?.price ?? null);
-      await upsertTraderWallet(client, swap.walletAddress, swap.blockNumber, swap.timestamp);
-    }
+    await insertTransfersBatch(client, transfers);
+    await insertSwapsBatch(
+      client,
+      swaps.map(({ swap, dex }) => {
+        const p = pricing.get(`${swap.txHash}:${swap.logIndex}`);
+        return { swap, dex, usdValue: p?.usdValue ?? null, price: p?.price ?? null };
+      })
+    );
+    await upsertTradersBatch(client, swaps.map((s) => s.swap));
     for (const { event, dex } of liquidityEvents) await insertLiquidityEvent(client, event, dex);
   });
 
@@ -185,57 +205,79 @@ export async function decodeBlock(
   };
 }
 
-async function insertTransfer(client: PoolClient, t: ParsedTransfer): Promise<void> {
-  await client.query(
-    `INSERT INTO token_transfers
-       (chain_id, transaction_hash, log_index, token_address, from_address, to_address,
-        amount, block_number, timestamp)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8, to_timestamp($9))
-     ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING`,
-    [
-      config.CHAIN_ID,
-      t.txHash,
-      t.logIndex,
-      t.token,
-      t.from,
-      t.to,
-      t.amount.toString(),
-      t.blockNumber.toString(),
-      t.timestamp,
-    ]
-  );
+const CHUNK = 400;
+
+async function insertTransfersBatch(client: PoolClient, rows: ParsedTransfer[]): Promise<void> {
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const vals: unknown[] = [config.CHAIN_ID];
+    const tuples = chunk.map((t, j) => {
+      const b = j * 8;
+      vals.push(t.txHash, t.logIndex, t.token, t.from, t.to, t.amount.toString(), t.blockNumber.toString(), t.timestamp);
+      return `($1,$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8}, to_timestamp($${b + 9}))`;
+    });
+    await client.query(
+      `INSERT INTO token_transfers
+         (chain_id, transaction_hash, log_index, token_address, from_address, to_address, amount, block_number, timestamp)
+       VALUES ${tuples.join(",")}
+       ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING`,
+      vals
+    );
+  }
 }
 
-async function insertSwap(
+async function insertSwapsBatch(
   client: PoolClient,
-  s: DecodedSwap,
-  dex: string,
-  usdValue: number | null,
-  price: number | null
+  rows: { swap: DecodedSwap; dex: string; usdValue: number | null; price: number | null }[]
 ): Promise<void> {
-  await client.query(
-    `INSERT INTO swaps
-       (chain_id, transaction_hash, log_index, pool_address, dex, wallet_address,
-        token_in, token_out, amount_in, amount_out, usd_value, price, block_number, timestamp)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, to_timestamp($14))
-     ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING`,
-    [
-      config.CHAIN_ID,
-      s.txHash,
-      s.logIndex,
-      s.poolAddress,
-      dex,
-      s.walletAddress,
-      s.tokenIn,
-      s.tokenOut,
-      s.amountIn.toString(),
-      s.amountOut.toString(),
-      usdValue,
-      price,
-      s.blockNumber.toString(),
-      s.timestamp,
-    ]
-  );
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const vals: unknown[] = [config.CHAIN_ID];
+    const tuples = chunk.map(({ swap: s, dex, usdValue, price }, j) => {
+      const b = j * 13;
+      vals.push(
+        s.txHash, s.logIndex, s.poolAddress, dex, s.walletAddress, s.tokenIn, s.tokenOut,
+        s.amountIn.toString(), s.amountOut.toString(), usdValue, price, s.blockNumber.toString(), s.timestamp
+      );
+      return `($1,$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13}, to_timestamp($${b + 14}))`;
+    });
+    await client.query(
+      `INSERT INTO swaps
+         (chain_id, transaction_hash, log_index, pool_address, dex, wallet_address,
+          token_in, token_out, amount_in, amount_out, usd_value, price, block_number, timestamp)
+       VALUES ${tuples.join(",")}
+       ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING`,
+      vals
+    );
+  }
+}
+
+async function upsertTradersBatch(client: PoolClient, swaps: DecodedSwap[]): Promise<void> {
+  const seen = new Map<string, { block: bigint; ts: number }>();
+  for (const s of swaps) {
+    const cur = seen.get(s.walletAddress);
+    if (!cur || s.blockNumber > cur.block) seen.set(s.walletAddress, { block: s.blockNumber, ts: s.timestamp });
+  }
+  const entries = [...seen.entries()];
+  for (let i = 0; i < entries.length; i += CHUNK) {
+    const chunk = entries.slice(i, i + CHUNK);
+    const vals: unknown[] = [config.CHAIN_ID];
+    const tuples = chunk.map(([addr, { block, ts }], j) => {
+      const b = j * 3;
+      vals.push(addr, block.toString(), ts);
+      return `($1,$${b + 2},$${b + 3},$${b + 3}, to_timestamp($${b + 4}), to_timestamp($${b + 4}))`;
+    });
+    await client.query(
+      `INSERT INTO wallets (chain_id, address, first_seen_block, last_seen_block, first_seen_at, last_seen_at)
+       VALUES ${tuples.join(",")}
+       ON CONFLICT (chain_id, address) DO UPDATE SET
+         first_seen_block = LEAST(wallets.first_seen_block, EXCLUDED.first_seen_block),
+         last_seen_block  = GREATEST(wallets.last_seen_block, EXCLUDED.last_seen_block),
+         first_seen_at = LEAST(wallets.first_seen_at, EXCLUDED.first_seen_at),
+         last_seen_at  = GREATEST(wallets.last_seen_at, EXCLUDED.last_seen_at)`,
+      vals
+    );
+  }
 }
 
 async function insertLiquidityEvent(
@@ -264,20 +306,3 @@ async function insertLiquidityEvent(
   );
 }
 
-async function upsertTraderWallet(
-  client: PoolClient,
-  address: Hex,
-  block: bigint,
-  timestamp: number
-): Promise<void> {
-  await client.query(
-    `INSERT INTO wallets (chain_id, address, first_seen_block, last_seen_block, first_seen_at, last_seen_at)
-     VALUES ($1,$2,$3,$3, to_timestamp($4), to_timestamp($4))
-     ON CONFLICT (chain_id, address) DO UPDATE SET
-       first_seen_block = LEAST(wallets.first_seen_block, EXCLUDED.first_seen_block),
-       last_seen_block  = GREATEST(wallets.last_seen_block, EXCLUDED.last_seen_block),
-       first_seen_at = LEAST(wallets.first_seen_at, EXCLUDED.first_seen_at),
-       last_seen_at  = GREATEST(wallets.last_seen_at, EXCLUDED.last_seen_at)`,
-    [config.CHAIN_ID, address, block.toString(), timestamp]
-  );
-}

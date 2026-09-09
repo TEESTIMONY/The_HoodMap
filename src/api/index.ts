@@ -74,14 +74,11 @@ app.get<{ Params: { address: string }; Querystring: { refresh?: string } }>(
       [config.CHAIN_ID, address]
     );
     const row = cached.rows[0];
-    const state = await getOrCreateIndexerState();
     const ageMs = row?.computed_at ? Date.now() - new Date(row.computed_at).getTime() : Infinity;
-    const behind =
-      row && state.lastProcessedBlock - BigInt(row.indexed_through_block ?? 0) > 50n;
 
-    // Recompute on demand: never computed, stale (>2min), the chain has moved
-    // meaningfully since, or ?refresh=1. Bounded by the wallet's swap count.
-    if (!row || ageMs > 120_000 || behind || req.query.refresh === "1") {
+    // Recompute on demand: never computed, stale (>5min — the wallet backfill is
+    // cached ~10min anyway), or ?refresh=1. Bounded by the wallet's swap count.
+    if (!row || ageMs > 300_000 || req.query.refresh === "1") {
       const summary = await computeWalletPnl(address);
       if (summary.total_trades === 0) {
         return { has_trades: false, ...summary };

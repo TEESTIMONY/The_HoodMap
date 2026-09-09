@@ -8,6 +8,11 @@ export const pool = new Pool({
   ...pgConnectionConfig(),
   max: config.DATABASE_POOL_MAX,
   idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 15_000,
+  keepAlive: true,
+  // Supabase's pooler drops idle server connections; keep client statements
+  // from hanging forever if that happens mid-query.
+  statement_timeout: 60_000,
 });
 
 pool.on("error", (err) => {

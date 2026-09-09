@@ -329,11 +329,12 @@ async function lookupWallet() {
   }
   walletAddr = addr; walletTxs = [];
   $("walletBtn").disabled = true;
-  $("walletSummary").innerHTML = `<div class="note">analysing — reconstructing trades and running the PnL engine…</div>`;
+  $("walletSummary").innerHTML = `<div class="note">analysing — pulling history, reconstructing trades, running the PnL engine… (first scan of an active wallet can take ~30s)</div>`;
   $("walletPositions").innerHTML = $("walletTradesWrap").innerHTML = $("walletTxWrap").innerHTML = "";
 
-  const [summary, positions, trades] = await Promise.all([
-    api(`/api/v1/wallets/${addr}`),
+  // Summary first — it triggers the backfill + PnL compute. Then read the rest.
+  const summary = await api(`/api/v1/wallets/${addr}`);
+  const [positions, trades] = await Promise.all([
     api(`/api/v1/wallets/${addr}/positions`),
     api(`/api/v1/wallets/${addr}/trades?limit=50`),
   ]);

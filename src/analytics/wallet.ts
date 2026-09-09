@@ -12,6 +12,7 @@ import {
   type Position,
   type WalletSwap,
 } from "./pnl.js";
+import { backfillWalletTrades, walletIsFresh } from "./walletBackfill.js";
 
 const MAX_SWAPS = 8_000; // cap the heaviest wallets; noted in the response
 
@@ -105,8 +106,22 @@ function hoursBetween(a: string, b: string): number {
  * mark open positions to market, and persist trades / positions /
  * wallet_statistics for this wallet + engine version.
  */
-export async function computeWalletPnl(addressRaw: string): Promise<WalletSummary> {
+export async function computeWalletPnl(
+  addressRaw: string,
+  opts: { skipBackfill?: boolean } = {}
+): Promise<WalletSummary> {
   const address = normalizeAddress(addressRaw);
+
+  // Pull this wallet's history from chain so analysis works even where the
+  // indexer hasn't reached. Cached for ~10min per wallet.
+  if (!opts.skipBackfill && !(await walletIsFresh(address))) {
+    try {
+      await backfillWalletTrades(address);
+    } catch (err) {
+      logger.warn({ wallet: address, err: (err as Error).message }, "wallet backfill failed");
+    }
+  }
+
   const state = await getOrCreateIndexerState();
   const indexedBlock = state.lastProcessedBlock.toString();
 
