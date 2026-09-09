@@ -27,9 +27,11 @@ interface RawTransfer {
  */
 export async function getWalletTransfers(
   address: string,
-  maxPages = 5
+  maxPages = 5,
+  fromBlock = 0
 ): Promise<AssetTransfer[]> {
   const out: AssetTransfer[] = [];
+  const fromBlockHex = `0x${fromBlock.toString(16)}`;
 
   for (const dir of ["fromAddress", "toAddress"] as const) {
     let pageKey: string | undefined;
@@ -38,7 +40,7 @@ export async function getWalletTransfers(
         method: "alchemy_getAssetTransfers" as never,
         params: [
           {
-            fromBlock: "0x0",
+            fromBlock: fromBlockHex,
             toBlock: "latest",
             [dir]: address,
             category: ["external", "erc20"],

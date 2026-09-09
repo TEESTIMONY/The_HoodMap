@@ -252,40 +252,47 @@ async function persist(
       [config.CHAIN_ID, address, PNL_ENGINE_VERSION]
     );
 
-    for (const t of trades) {
+    // Batched multi-row inserts — one round trip each, not one per row (the
+    // Supabase pooler adds ~150ms latency per statement).
+    for (let i = 0; i < trades.length; i += 200) {
+      const chunk = trades.slice(i, i + 200);
+      const vals: unknown[] = [config.CHAIN_ID, address, PNL_ENGINE_VERSION];
+      const tuples = chunk.map((t, j) => {
+        const b = j * 10;
+        vals.push(t.token, t.side, t.qty, t.price, t.usd, t.costBasis, t.realizedPnl, t.dex, t.txHash, t.timestamp);
+        return `($1,$2,$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$3,$${b + 12},$${b + 13})`;
+      });
       await client.query(
         `INSERT INTO trades
            (chain_id, wallet_address, token_address, side, quantity, price, usd_value,
-            cost_basis, realized_pnl, dex, tx_hash, pnl_engine_version, timestamp)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            cost_basis, realized_pnl, dex, pnl_engine_version, tx_hash, timestamp)
+         VALUES ${tuples.join(",")}
          ON CONFLICT (chain_id, wallet_address, token_address, tx_hash, side, pnl_engine_version)
            DO NOTHING`,
-        [
-          config.CHAIN_ID,
-          address,
-          t.token,
-          t.side,
-          t.qty,
-          t.price,
-          t.usd,
-          t.costBasis,
-          t.realizedPnl,
-          t.dex,
-          t.txHash,
-          PNL_ENGINE_VERSION,
-          t.timestamp,
-        ]
+        vals
       );
     }
 
-    for (const p of positions.values()) {
+    const posRows = [...positions.values()];
+    for (let i = 0; i < posRows.length; i += 200) {
+      const chunk = posRows.slice(i, i + 200);
+      const vals: unknown[] = [config.CHAIN_ID, address, PNL_ENGINE_VERSION];
+      const tuples = chunk.map((p, j) => {
+        const b = j * 16;
+        vals.push(
+          p.token, p.qty, p.averageCost, p.costBasis, p.realizedPnl, p.realizedMatched,
+          p.realizedUnmatched, p.hasCostBasis, p.unrealizedPnl ?? 0, p.currentPrice, p.currentValue,
+          p.isOpen, p.buyUsd, p.sellUsd, p.firstBuyAt, p.lastActivityAt
+        );
+        return `($1,$2,$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 11},$${b + 12},$${b + 13},$${b + 14},$${b + 15},$${b + 16},$${b + 17},$${b + 18},$${b + 19},$3, now())`;
+      });
       await client.query(
         `INSERT INTO positions
            (chain_id, wallet_address, token_address, quantity, average_cost, cost_basis,
             realized_pnl, realized_matched, realized_unmatched, has_cost_basis,
             unrealized_pnl, current_price, current_value, is_open,
             buy_usd, sell_usd, first_buy_at, last_activity_at, pnl_engine_version, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19, now())
+         VALUES ${tuples.join(",")}
          ON CONFLICT (chain_id, wallet_address, token_address) DO UPDATE SET
            quantity = EXCLUDED.quantity, average_cost = EXCLUDED.average_cost,
            cost_basis = EXCLUDED.cost_basis, realized_pnl = EXCLUDED.realized_pnl,
@@ -296,27 +303,7 @@ async function persist(
            buy_usd = EXCLUDED.buy_usd, sell_usd = EXCLUDED.sell_usd,
            first_buy_at = EXCLUDED.first_buy_at, last_activity_at = EXCLUDED.last_activity_at,
            pnl_engine_version = EXCLUDED.pnl_engine_version, updated_at = now()`,
-        [
-          config.CHAIN_ID,
-          address,
-          p.token,
-          p.qty,
-          p.averageCost,
-          p.costBasis,
-          p.realizedPnl,
-          p.realizedMatched,
-          p.realizedUnmatched,
-          p.hasCostBasis,
-          p.unrealizedPnl ?? 0,
-          p.currentPrice,
-          p.currentValue,
-          p.isOpen,
-          p.buyUsd,
-          p.sellUsd,
-          p.firstBuyAt,
-          p.lastActivityAt,
-          PNL_ENGINE_VERSION,
-        ]
+        vals
       );
     }
 

@@ -15,13 +15,20 @@ const FRESH_MS = 10 * 60 * 1000;
 
 const kind = (address: string): string => `wallet:${address}`;
 
-/** True if this wallet was backfilled from chain history within FRESH_MS. */
-export async function walletIsFresh(address: string): Promise<boolean> {
-  const { rows } = await query<{ updated_at: string }>(
-    `SELECT updated_at FROM backfill_state WHERE chain_id = $1 AND kind = $2`,
+async function backfillCursor(address: string): Promise<{ block: number; updatedAt: number } | null> {
+  const { rows } = await query<{ last_block: string; updated_at: string }>(
+    `SELECT last_block, updated_at FROM backfill_state WHERE chain_id = $1 AND kind = $2`,
     [config.CHAIN_ID, kind(normalizeAddress(address))]
   );
-  return !!rows[0] && Date.now() - new Date(rows[0].updated_at).getTime() < FRESH_MS;
+  return rows[0]
+    ? { block: Number(rows[0].last_block), updatedAt: new Date(rows[0].updated_at).getTime() }
+    : null;
+}
+
+/** True if this wallet was backfilled from chain history within FRESH_MS. */
+export async function walletIsFresh(address: string): Promise<boolean> {
+  const c = await backfillCursor(address);
+  return !!c && Date.now() - c.updatedAt < FRESH_MS;
 }
 
 /**
@@ -33,7 +40,11 @@ export async function backfillWalletTrades(
   addressRaw: string
 ): Promise<{ txScanned: number; swaps: number; truncated: boolean }> {
   const address = normalizeAddress(addressRaw);
-  const transfers = await getWalletTransfers(address);
+  // Incremental refresh: if we've scanned this wallet before, only fetch
+  // transfers from a bit before the last block we reached.
+  const prev = await backfillCursor(address);
+  const fromBlock = prev && prev.block > 0 ? Math.max(0, prev.block - 5) : 0;
+  const transfers = await getWalletTransfers(address, 5, fromBlock);
 
   const meta = new Map<string, { block: number; ts: number; ethValue: number }>();
   const erc20Hashes = new Set<string>();
