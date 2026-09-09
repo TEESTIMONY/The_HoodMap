@@ -18,12 +18,12 @@ export function ProductCard({ icon: Icon, name, status, blurb, className }: Prod
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="inline-flex size-9 items-center justify-center rounded-xl border border-line-strong bg-surface-2 text-lime transition-colors group-hover:shadow-glow-lime-sm">
-          <Icon className="size-4" />
+        <span className="inline-flex size-10 items-center justify-center rounded-xl border border-line-strong bg-surface-2 text-lime transition-colors group-hover:shadow-glow-lime-sm">
+          <Icon className="size-[18px]" />
         </span>
         <span
           className={cn(
-            "font-mono text-[9px] uppercase tracking-widest",
+            "font-mono text-[10px] uppercase tracking-widest",
             status === "live" ? "text-moss-soft" : "text-ink-faint"
           )}
         >
@@ -31,8 +31,8 @@ export function ProductCard({ icon: Icon, name, status, blurb, className }: Prod
         </span>
       </div>
       <div>
-        <h3 className="font-mono text-[13px] font-semibold tracking-tight text-ink">{name}</h3>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">{blurb}</p>
+        <h3 className="font-display text-lg font-semibold text-ink">{name}</h3>
+        <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">{blurb}</p>
       </div>
     </div>
   );

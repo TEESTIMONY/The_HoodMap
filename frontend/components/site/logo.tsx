@@ -60,8 +60,8 @@ export function HoodMark({ className }: { className?: string }) {
 export function HoodWordmark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <HoodMark className="size-7 shrink-0" />
-      <span className="font-mono text-[15px] font-semibold tracking-tight text-ink">
+      <HoodMark className="size-8 shrink-0" />
+      <span className="font-display text-xl font-semibold text-ink">
         Hood<span className="text-lime">Map</span>
       </span>
     </span>

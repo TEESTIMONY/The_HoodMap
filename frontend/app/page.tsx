@@ -110,12 +110,12 @@ export default function LandingPage() {
           {/* nav */}
           <nav className="flex items-center justify-between py-6">
             <HoodWordmark />
-            <div className="hidden items-center gap-1 rounded-full border border-line-strong bg-surface/60 px-2 py-1.5 font-mono text-[12px] text-ink-muted backdrop-blur-md md:flex">
+            <div className="hidden items-center gap-1 rounded-full border border-line-strong bg-surface/60 px-2 py-1.5 font-mono text-[13px] text-ink-muted backdrop-blur-md md:flex">
               {NAV.map((n) => (
                 <Link
                   key={n.href}
                   href={n.href}
-                  className="rounded-full px-3 py-1 transition-colors hover:bg-surface-3 hover:text-ink"
+                  className="rounded-full px-3.5 py-1.5 transition-colors hover:bg-surface-3 hover:text-ink"
                 >
                   {n.label}
                 </Link>
@@ -124,37 +124,40 @@ export default function LandingPage() {
             <div className="flex items-center gap-2">
               <Link
                 href="/scan"
-                className="hidden rounded-xl border border-line-strong bg-surface/70 px-3.5 py-2 font-mono text-[12px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink sm:inline-flex"
+                className="hidden rounded-xl border border-line-strong bg-surface/70 px-4 py-2.5 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink sm:inline-flex"
               >
                 Login
               </Link>
               <Link
                 href="/scan"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-lime px-3.5 py-2 font-mono text-[12px] font-semibold text-canvas transition-shadow hover:shadow-glow-lime-sm"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-lime px-4 py-2.5 font-mono text-[13px] font-semibold text-canvas transition-shadow hover:shadow-glow-lime-sm"
               >
                 Launch
-                <ArrowUpRight className="size-3.5" />
+                <ArrowUpRight className="size-4" />
               </Link>
             </div>
           </nav>
 
           {/* headline */}
-          <div className="flex flex-col items-center pt-[7vh] text-center">
-            <span className="mb-6 max-w-[92vw] rounded-full border border-line bg-surface/50 px-3.5 py-1.5 text-center font-mono text-[9px] tracking-wide text-ink-muted backdrop-blur-md sm:text-[11px]">
-              Who holds it · who&apos;s connected · is it safe
+          <div className="flex flex-col items-center pt-[6vh] text-center">
+            <span className="mb-7 max-w-[92vw] rounded-full border border-line bg-surface/50 px-4 py-2 text-center font-mono text-[11px] tracking-wide text-ink-muted backdrop-blur-md sm:text-[13px]">
+              The intelligence layer for Robinhood Chain
             </span>
-            <h1 className="mx-auto max-w-[12ch] font-display text-[9vw] font-normal uppercase leading-[1.03] tracking-tight text-ink sm:max-w-none sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl">
+            <h1 className="mx-auto max-w-[13ch] font-display text-[11vw] font-bold uppercase leading-[0.98] tracking-[-0.01em] text-ink sm:max-w-none sm:text-5xl md:text-6xl lg:text-7xl">
               HoodMap
               <br />
               <span className="text-lime">Wallet Intelligence</span>
             </h1>
+            <p className="mt-6 max-w-xl text-pretty text-[15px] leading-relaxed text-ink-muted sm:text-base">
+              Who really holds a token · who&apos;s connected · whether it&apos;s safe — and how any
+              wallet has actually done.
+            </p>
           </div>
 
           {/* bottom CTA */}
-          <div className="mt-auto flex flex-col items-center gap-6 pb-14 text-center">
-            <p className="max-w-sm text-pretty text-[15px] leading-relaxed text-ink-muted">
-              Want to see who really holds a token — and how a wallet has actually done — before you
-              buy in?
+          <div className="mt-auto flex flex-col items-center gap-5 pb-14 text-center">
+            <p className="font-mono text-[13px] uppercase tracking-[0.18em] text-ink-faint">
+              Paste a token or wallet
             </p>
             <ScanInput className="max-w-lg" />
           </div>
@@ -162,23 +165,25 @@ export default function LandingPage() {
       </section>
 
       {/* ================= What it reads ================= */}
-      <section className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+      <section className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-3">
           {READS.map((r) => (
-            <div key={r.title} className="rounded-2xl border border-line bg-surface/50 p-5">
-              <r.icon className="size-4 text-lime" />
-              <h3 className="mt-3 font-mono text-[13px] font-semibold text-ink">{r.title}</h3>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">{r.body}</p>
+            <div key={r.title} className="rounded-2xl border border-line bg-surface/50 p-6">
+              <r.icon className="size-5 text-lime" />
+              <h3 className="mt-4 font-display text-lg font-semibold text-ink">{r.title}</h3>
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">{r.body}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ================= Products ================= */}
-      <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
-        <div className="mb-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint">The product</p>
-          <h2 className="mt-2 font-display text-3xl uppercase tracking-tight text-ink sm:text-4xl">
+      <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
+        <div className="mb-10">
+          <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-ink-faint">
+            The product
+          </p>
+          <h2 className="mt-3 max-w-4xl font-display text-4xl font-bold uppercase leading-[1.05] text-ink sm:text-5xl">
             DexScreener, Bubblemaps, and a P&amp;L tracker — one terminal, one chain.
           </h2>
         </div>
@@ -187,23 +192,23 @@ export default function LandingPage() {
             <ProductCard key={p.name} {...p} />
           ))}
         </div>
-        <p className="mt-6 font-mono text-[11px] text-ink-faint">
+        <p className="mt-6 font-mono text-[12px] text-ink-faint">
           In progress: Constellation (social graph) · Notifications · Profiles
         </p>
       </section>
 
       {/* ================= Evidence / voice ================= */}
-      <section className="mx-auto max-w-6xl px-5 pb-24 sm:px-8">
-        <div className="rounded-2xl border border-line bg-surface-2/60 p-6 sm:p-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint">
+      <section className="mx-auto max-w-6xl px-5 pb-28 sm:px-8">
+        <div className="rounded-2xl border border-line bg-surface-2/60 p-7 sm:p-10">
+          <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-ink-faint">
             State findings plainly, with the evidence
           </p>
-          <p className="mt-4 font-mono text-[15px] leading-relaxed text-ink sm:text-lg">
+          <p className="mt-5 font-mono text-lg leading-relaxed text-ink sm:text-xl">
             <span className="text-lime">3 wallet clusters</span> control <span className="text-lime">41%</span>{" "}
             of supply. Top cluster funded from <span className="text-lime">one address</span>. LP not
             locked.
           </p>
-          <p className="mt-3 font-mono text-[12px] text-ink-faint">
+          <p className="mt-4 font-mono text-[13px] text-ink-faint">
             HoodScore <span className="text-warning">C</span> · reasons attached · derived from
             on-chain transfer history
           </p>
@@ -212,10 +217,10 @@ export default function LandingPage() {
 
       {/* ================= Footer ================= */}
       <footer className="border-t border-line">
-        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
+        <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <HoodWordmark />
-            <div className="flex flex-wrap gap-6 font-mono text-[12px] text-ink-muted">
+            <div className="flex flex-wrap gap-6 font-mono text-[13px] text-ink-muted">
               {NAV.map((n) => (
                 <Link key={n.href} href={n.href} className="transition-colors hover:text-ink">
                   {n.label}
@@ -223,7 +228,7 @@ export default function LandingPage() {
               ))}
             </div>
           </div>
-          <p className="mt-8 max-w-2xl text-[11px] leading-relaxed text-ink-faint">
+          <p className="mt-8 max-w-2xl text-[12px] leading-relaxed text-ink-faint">
             HoodMap is an independent analytics tool. Not affiliated with, endorsed by, or connected
             to Robinhood Markets, Inc. Wallet metrics are derived from on-chain activity and may be
             incomplete where transaction intent or history outside the scan window can&apos;t be

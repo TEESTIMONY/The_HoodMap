@@ -44,19 +44,19 @@ export function ScanInput({ className }: { className?: string }) {
           spellCheck={false}
           autoComplete="off"
           placeholder="Paste a Robinhood Chain contract or wallet (0x…)"
-          className="tabular min-w-0 flex-1 bg-transparent px-3 py-2.5 font-mono text-[13px] text-ink placeholder:text-ink-faint focus:outline-none"
+          className="tabular min-w-0 flex-1 bg-transparent px-3 py-3 font-mono text-[14px] text-ink placeholder:text-ink-faint focus:outline-none"
         />
         <button
           type="submit"
-          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-lime px-4 py-2.5 font-mono text-[12px] font-semibold uppercase tracking-wide text-canvas transition-shadow hover:shadow-glow-lime-sm"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-lime px-5 py-3 font-mono text-[13px] font-semibold uppercase tracking-wide text-canvas transition-shadow hover:shadow-glow-lime-sm"
         >
           Scan
-          <ArrowRight className="size-3.5" />
+          <ArrowRight className="size-4" />
         </button>
       </form>
       <p
         className={cn(
-          "mt-2 min-h-[1.25rem] px-1 font-mono text-[11px]",
+          "mt-2.5 min-h-[1.25rem] px-1 font-mono text-[12px]",
           error ? "text-danger" : "text-ink-faint"
         )}
       >
