@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
+import { Gruppo } from "next/font/google";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
+
+// Display face — thin, wide, geometric (matches the brand-sheet headline feel).
+const gruppo = Gruppo({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "HoodMap — Robinhood Chain wallet intelligence",
@@ -22,7 +31,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} dark`}>
+    <html
+      lang="en"
+      className={`${gruppo.variable} ${GeistSans.variable} ${GeistMono.variable} dark`}
+    >
       <body className="grain min-h-screen bg-canvas font-sans text-ink antialiased">
         {children}
       </body>

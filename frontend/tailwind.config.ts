@@ -42,6 +42,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+        display: ["var(--font-display)", "var(--font-geist-sans)", "sans-serif"],
       },
       backgroundImage: {
         "lime-moss": "linear-gradient(100deg, #D6FA4D, #17B04A)",
