@@ -17,6 +17,7 @@
     "dev:api": "tsx watch src/api/index.ts",
     "dev:stats": "tsx watch src/workers/statistics.ts",
     "stats:once": "tsx -e \"import('./src/analytics/statistics.js').then(m=>m.refreshStatistics()).then(r=>{console.log(r);process.exit(0)})\"",
+    "compare": "tsx src/scripts/compare.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test \"dist/**/*.test.js\"",

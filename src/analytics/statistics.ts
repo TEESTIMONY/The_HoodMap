@@ -2,8 +2,8 @@ import { formatUnits, type Hex } from "viem";
 import { query, withTransaction } from "../db/pool.js";
 import type { PoolClient } from "pg";
 import { config } from "../config/index.js";
-import { contracts, isStablecoin, isWeth } from "../dex/contracts.js";
-import { readPoolReserves, valuePools, type PoolValuation } from "./poolState.js";
+import { contracts } from "../dex/contracts.js";
+import { readPoolStates, valuePools, type PoolValuation } from "./poolState.js";
 import type { KnownPool } from "../dex/adapter.js";
 
 /** Clamp to a sane range and to what the target NUMERIC column can hold —
@@ -47,34 +47,6 @@ async function lastWethUsdFromSwaps(): Promise<number | null> {
     [config.CHAIN_ID, contracts.weth, contracts.stablecoins]
   );
   return rows[0] ? Number(rows[0].price) : null;
-}
-
-/** WETH/USD as a stable-liquidity-weighted average across every WETH↔stable pool
- *  in this reserve set — more stable than picking a single pool. */
-function wethUsdFromReserves(
-  reserves: { pool: KnownPool; reserve0: bigint; reserve1: bigint }[],
-  decimalsOf: (a: string) => number
-): number | null {
-  let weightSum = 0;
-  let weightedPx = 0;
-  for (const r of reserves) {
-    const a0 = Number(formatUnits(r.reserve0, decimalsOf(r.pool.token0)));
-    const a1 = Number(formatUnits(r.reserve1, decimalsOf(r.pool.token1)));
-    let px: number | null = null;
-    let stable = 0;
-    if (isWeth(r.pool.token0) && isStablecoin(r.pool.token1) && a0 > 0) {
-      px = a1 / a0;
-      stable = a1;
-    } else if (isWeth(r.pool.token1) && isStablecoin(r.pool.token0) && a1 > 0) {
-      px = a0 / a1;
-      stable = a0;
-    }
-    if (px != null && px > 100 && px < 100_000 && stable > 100) {
-      weightSum += stable;
-      weightedPx += px * stable;
-    }
-  }
-  return weightSum > 0 ? weightedPx / weightSum : null;
 }
 
 async function loadTokenMeta(addresses: string[]): Promise<Map<string, { decimals: number | null; total_supply: string | null }>> {
@@ -270,27 +242,39 @@ async function computeForPools(pools: KnownPool[], targetTokens: string[] | null
   const meta = await loadTokenMeta(tokenAddrs);
   const decimalsOf = (a: string) => meta.get(a.toLowerCase())?.decimals ?? 18;
 
-  const reserves = await readPoolReserves(pools);
-  let wethUsd = wethUsdFromReserves(reserves, decimalsOf);
-  if (wethUsd == null) {
-    const { rows } = await query<{ price: string }>(
-      `SELECT price FROM token_statistics WHERE chain_id = $1 AND token_address = $2 AND price IS NOT NULL`,
-      [config.CHAIN_ID, contracts.weth]
-    );
-    wethUsd = rows[0] ? Number(rows[0].price) : await lastWethUsdFromSwaps();
-  }
+  const states = await readPoolStates(pools);
+
+  // Bootstrap WETH/USD (refined below once valuePools has run on the WETH pools).
+  const { rows: wethRow } = await query<{ price: string }>(
+    `SELECT price FROM token_statistics WHERE chain_id = $1 AND token_address = $2 AND price IS NOT NULL`,
+    [config.CHAIN_ID, contracts.weth]
+  );
+  let wethUsd = wethRow[0] ? Number(wethRow[0].price) : await lastWethUsdFromSwaps();
 
   // Seed known prices from existing stats so a single-token recompute can still
   // price a TOKEN_A/TOKEN_B pool where B was priced elsewhere.
-  const knownPrices = new Map<string, number>();
-  const { rows: priced } = await query<{ token_address: string; price: string }>(
+  const seedKnown = (): Map<string, number> => {
+    const m = new Map<string, number>();
+    for (const p of pricedSeed) m.set(p.token_address, Number(p.price));
+    return m;
+  };
+  const { rows: pricedSeed } = await query<{ token_address: string; price: string }>(
     `SELECT token_address, price FROM token_statistics
       WHERE chain_id = $1 AND price IS NOT NULL AND token_address = ANY($2)`,
     [config.CHAIN_ID, tokenAddrs]
   );
-  for (const p of priced) knownPrices.set(p.token_address, Number(p.price));
 
-  const valuations = valuePools(reserves, decimalsOf, wethUsd, knownPrices);
+  let knownPrices = seedKnown();
+  let valuations = valuePools(states, decimalsOf, wethUsd, knownPrices);
+  // If these pools priced WETH themselves (e.g. a WETH/USDG pool in the set),
+  // adopt that and re-run so WETH-quoted tokens use the fresh anchor.
+  const freshWeth = knownPrices.get(contracts.weth);
+  if (freshWeth && (!wethUsd || Math.abs(freshWeth - wethUsd) / wethUsd > 0.02)) {
+    wethUsd = freshWeth;
+    knownPrices = seedKnown();
+    knownPrices.set(contracts.weth, wethUsd);
+    valuations = valuePools(states, decimalsOf, wethUsd, knownPrices);
+  }
   const agg = aggregateTokens(valuations);
 
   const wantTokens = targetTokens ? new Set(targetTokens.map((t) => t.toLowerCase())) : null;
