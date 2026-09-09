@@ -3,3 +3,9 @@ dist
 .env
 *.log
 .DS_Store
+
+.agents/
+skills-lock.json
+frontend/.hero.png
+frontend/.full.png
+frontend/.below.png

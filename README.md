@@ -5,7 +5,10 @@ Dexscreener-style market discovery + wallet PnL intelligence for Robinhood Chain
 
 ## Stack
 
-Node.js 20+ + TypeScript, viem, Fastify, PostgreSQL, Redis.
+- **Backend** (repo root): Node.js 20+ + TypeScript, viem, Fastify, PostgreSQL, Redis.
+- **Frontend** (`frontend/`): Next.js 14 (App Router) + TypeScript + Tailwind, shadcn
+  conventions (`components/ui`, `lib/utils`). HoodMap brand — lime-on-black, Geist /
+  Geist Mono. `cd frontend && npm install && npm run dev`.
 
 ## What's here (Phase 1)
 
