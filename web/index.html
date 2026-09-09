@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>HoodMap — Phase 1 test console</title>
+<title>HoodMap — Phase 2 test console</title>
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
@@ -25,18 +25,17 @@
   }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
   .dot.ok { background: var(--green); } .dot.bad { background: var(--red); }
-  main { max-width: 1000px; margin: 0 auto; padding: 20px; display: grid; gap: 20px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 20px; display: grid; gap: 20px; }
   .panel { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); overflow: hidden; }
   .panel > h2 {
     margin: 0; padding: 12px 16px; font-size: 13px; font-weight: 600;
     border-bottom: 1px solid var(--border); color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
   }
   .body { padding: 16px; display: grid; gap: 14px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   input {
-    flex: 1; min-width: 260px; padding: 8px 10px; border-radius: 6px;
-    border: 1px solid var(--border); background: var(--bg); color: var(--text);
-    font: inherit;
+    flex: 1; min-width: 240px; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit;
   }
   input:focus { outline: none; border-color: var(--accent); }
   button {
@@ -53,24 +52,56 @@
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
-  td.mono { color: var(--muted); }
-  .scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.mut { color: var(--muted); }
+  tr.clk { cursor: pointer; }
+  tr.clk:hover td { background: #1c2230; }
+  .scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; max-height: 460px; overflow-y: auto; }
   .tag { padding: 1px 6px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border); }
-  .tag.in { color: var(--green); border-color: var(--green); }
-  .tag.out { color: var(--amber); border-color: var(--amber); }
-  .tag.ok { color: var(--green); } .tag.fail { color: var(--red); }
-  a { color: var(--accent); }
+  .tag.buy { color: var(--green); border-color: var(--green); }
+  .tag.sell { color: var(--red); border-color: var(--red); }
+  .stats { display: flex; gap: 22px; flex-wrap: wrap; }
+  .stat b { display: block; font-size: 18px; font-weight: 600; }
+  .stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
 <header>
-  <h1>HoodMap · Phase 1 test console</h1>
+  <h1>HoodMap · Phase 2 test console</h1>
   <span class="pill"><span class="dot" id="statusDot"></span><span id="statusText">connecting…</span></span>
   <span class="pill">chain <span id="chainId">—</span></span>
-  <span class="pill">indexed block <span id="indexedBlock">—</span></span>
+  <span class="pill">block <span id="indexedBlock">—</span></span>
+  <span class="pill">WETH <span id="wethPill">—</span></span>
 </header>
 
 <main>
+  <section class="panel">
+    <h2>Market — Robinhood Chain</h2>
+    <div class="body">
+      <div class="stats" id="marketStats"><span class="note">loading…</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Tokens <span class="note">— by 24h volume (inline aggregate; precomputed in 2b)</span></h2>
+    <div class="body"><div id="tokensWrap"><span class="note">loading…</span></div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Pairs / Pools</h2>
+    <div class="body">
+      <div id="pairsWrap"><span class="note">loading…</span></div>
+      <div id="pairDetail"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent swaps <span class="note">— live decoded feed</span></h2>
+    <div class="body"><div id="swapsWrap"><span class="note">loading…</span></div></div>
+  </section>
+
   <section class="panel">
     <h2>Wallet</h2>
     <div class="body">
@@ -84,7 +115,7 @@
   </section>
 
   <section class="panel">
-    <h2>Token <span class="note">(404 until Phase 2 populates tokens)</span></h2>
+    <h2>Token lookup</h2>
     <div class="body">
       <div class="row">
         <input id="tokenInput" placeholder="0x token contract address" spellcheck="false" />
@@ -97,32 +128,56 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const explorerBase = "https://explorer.testnet.chain.robinhood.com";
+const explorerBase = "https://robinhoodchain.blockscout.com";
 
 async function api(path) {
-  const res = await fetch(path);
-  const text = await res.text();
-  let json;
-  try { json = text ? JSON.parse(text) : null; } catch { json = { error: text }; }
-  return { ok: res.ok, status: res.status, json };
+  try {
+    const res = await fetch(path);
+    const text = await res.text();
+    let json;
+    try { json = text ? JSON.parse(text) : null; } catch { json = { error: text }; }
+    return { ok: res.ok, status: res.status, json };
+  } catch (e) {
+    return { ok: false, status: 0, json: { error: String(e) } };
+  }
 }
 
-function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
-function short(a) { return a ? a.slice(0, 8) + "…" + a.slice(-6) : "—"; }
-function weiToEth(v) {
-  if (v == null) return "0";
-  const s = BigInt(v).toString().padStart(19, "0");
-  const whole = s.slice(0, -18).replace(/^0+(?=\d)/, "") || "0";
-  const frac = s.slice(-18).replace(/0+$/, "");
-  return frac ? `${whole}.${frac.slice(0, 6)}` : whole;
-}
+function esc(s) { return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function short(a) { return a ? a.slice(0, 6) + "…" + a.slice(-4) : "—"; }
 function ts(t) { return t ? new Date(t).toISOString().replace("T", " ").slice(0, 19) : "—"; }
+function usd(v) {
+  if (v == null) return "—";
+  const n = Number(v);
+  if (!isFinite(n)) return "—";
+  if (n === 0) return "$0";
+  if (n < 0.01) return "<$0.01";
+  return "$" + n.toLocaleString(undefined, { maximumFractionDigits: n < 1000 ? 2 : 0 });
+}
+function price(v) {
+  if (v == null) return "—";
+  const n = Number(v);
+  if (!isFinite(n) || n <= 0) return "—";
+  if (n >= 1) return "$" + n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return "$" + n.toPrecision(4);
+}
+function amt(raw, decimals) {
+  if (raw == null) return "—";
+  try {
+    const d = BigInt(decimals ?? 18);
+    const s = BigInt(raw).toString().padStart(Number(d) + 1, "0");
+    const cut = s.length - Number(d);
+    const whole = s.slice(0, cut).replace(/^0+(?=\d)/, "");
+    const frac = s.slice(cut).replace(/0+$/, "").slice(0, 4);
+    return frac ? `${whole}.${frac}` : whole;
+  } catch { return "—"; }
+}
+const txLink = (h) => `<a href="${explorerBase}/tx/${h}" target="_blank">${short(h)}</a>`;
+const addrLink = (a) => `<a href="${explorerBase}/address/${a}" target="_blank">${short(a)}</a>`;
 
-/* ---- health poll ---- */
+/* ---- health ---- */
 async function pollHealth() {
   const dot = $("statusDot"), txt = $("statusText");
-  let json = null;
-  try { ({ json } = await api("/health")); } catch { json = null; }
+  const { json } = await api("/health");
   if (json && json.status) {
     $("chainId").textContent = json.chainId ?? "—";
     if (json.db === false) {
@@ -136,13 +191,114 @@ async function pollHealth() {
     dot.className = "dot bad"; txt.textContent = "API unreachable";
   }
 }
-pollHealth();
-setInterval(pollHealth, 4000);
+
+/* ---- market ---- */
+async function loadMarket() {
+  const { ok, json } = await api("/api/v1/stats");
+  if (!ok) { $("marketStats").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
+  $("marketStats").innerHTML = [
+    ["tokens", json.tokens], ["pools", json.pools],
+    ["swaps 24h", json.swaps_24h], ["active wallets 24h", json.active_wallets_24h],
+    ["volume 24h", usd(json.volume_24h)],
+  ].map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join("");
+  $("wethPill").textContent = json.weth_usd ? price(json.weth_usd) : "—";
+}
+
+/* ---- tokens ---- */
+async function loadTokens() {
+  const { ok, json } = await api("/api/v1/tokens?limit=100");
+  if (!ok) { $("tokensWrap").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
+  if (!json.tokens.length) { $("tokensWrap").innerHTML = `<span class="note">no tokens discovered yet — run the indexer</span>`; return; }
+  const rows = json.tokens.map((t) => `<tr>
+    <td>${esc(t.symbol || "?")}</td>
+    <td class="mut">${esc(t.name || "")}</td>
+    <td class="mut">${esc(t.token_type)}</td>
+    <td class="num">${price(t.last_price)}</td>
+    <td class="num">${usd(t.vol_24h)}</td>
+    <td class="num">${esc(t.swap_count_24h)}</td>
+    <td class="num">${esc(t.pool_count)}</td>
+    <td>${addrLink(t.address)}</td>
+  </tr>`).join("");
+  $("tokensWrap").innerHTML = `<div class="scroll"><table>
+    <thead><tr><th>sym</th><th>name</th><th>type</th><th class="num">~price</th><th class="num">vol 24h</th><th class="num">swaps</th><th class="num">pools</th><th>addr</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---- pairs ---- */
+async function loadPairs() {
+  const { ok, json } = await api("/api/v1/pairs?limit=100");
+  if (!ok) { $("pairsWrap").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
+  if (!json.pairs.length) { $("pairsWrap").innerHTML = `<span class="note">no pools discovered yet</span>`; return; }
+  const rows = json.pairs.map((p) => `<tr class="clk" data-pair="${p.address}">
+    <td>${esc(p.symbol0 || "?")}/${esc(p.symbol1 || "?")}</td>
+    <td class="mut">${esc(p.dex)}</td>
+    <td class="mut">${p.fee_tier ? (Number(p.fee_tier) / 10000) + "%" : "—"}</td>
+    <td class="num">${usd(p.vol_24h)}</td>
+    <td class="num">${esc(p.swap_count_24h)}</td>
+    <td class="mut">${p.last_swap_at ? ts(p.last_swap_at) : "—"}</td>
+    <td>${addrLink(p.address)}</td>
+  </tr>`).join("");
+  $("pairsWrap").innerHTML = `<div class="scroll"><table>
+    <thead><tr><th>pair</th><th>dex</th><th>fee</th><th class="num">vol 24h</th><th class="num">swaps</th><th>last swap</th><th>addr</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+  $("pairsWrap").querySelectorAll("tr.clk").forEach((tr) => {
+    tr.onclick = () => loadPairDetail(tr.dataset.pair);
+  });
+}
+
+async function loadPairDetail(address) {
+  $("pairDetail").innerHTML = `<span class="note">loading ${short(address)}…</span>`;
+  const [meta, swaps] = await Promise.all([
+    api(`/api/v1/pairs/${address}`),
+    api(`/api/v1/pairs/${address}/swaps?limit=40`),
+  ]);
+  if (!meta.ok) { $("pairDetail").innerHTML = `<span class="err">${esc(meta.json?.error)}</span>`; return; }
+  const m = meta.json;
+  const head = `<dl class="kv">
+    <dt>pair</dt><dd>${esc(m.symbol0)}/${esc(m.symbol1)} · ${esc(m.dex)} · ${m.fee_tier ? (Number(m.fee_tier)/10000)+"%" : "—"}</dd>
+    <dt>pool</dt><dd>${addrLink(m.address)}</dd>
+    <dt>24h volume</dt><dd>${usd(m.vol_24h)}</dd>
+    <dt>24h swaps</dt><dd>${esc(m.swap_count_24h)} (${esc(m.buys_24h)} buy / ${esc(m.sells_24h)} sell)</dd>
+  </dl>`;
+  const rows = (swaps.json?.swaps || []).map((s) => swapRow(s, m.token0)).join("");
+  $("pairDetail").innerHTML = head + (rows
+    ? `<div class="scroll"><table><thead><tr><th>time</th><th>side</th><th>in</th><th>out</th><th class="num">USD</th><th>wallet</th><th>tx</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : `<span class="note">no swaps recorded for this pool yet</span>`);
+}
+
+function swapRow(s, token0) {
+  const isBuy = token0 && s.token_out.toLowerCase() === token0.toLowerCase();
+  return `<tr>
+    <td class="mut">${ts(s.timestamp)}</td>
+    <td><span class="tag ${isBuy ? "buy" : "sell"}">${isBuy ? "BUY" : "SELL"}</span></td>
+    <td>${amt(s.amount_in, s.decimals_in)} ${esc(s.symbol_in || "?")}</td>
+    <td>${amt(s.amount_out, s.decimals_out)} ${esc(s.symbol_out || "?")}</td>
+    <td class="num">${usd(s.usd_value)}</td>
+    <td>${addrLink(s.wallet_address)}</td>
+    <td>${txLink(s.transaction_hash)}</td>
+  </tr>`;
+}
+
+/* ---- recent swaps ---- */
+async function loadSwaps() {
+  const { ok, json } = await api("/api/v1/swaps/recent?limit=60");
+  if (!ok) { $("swapsWrap").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
+  if (!json.swaps.length) { $("swapsWrap").innerHTML = `<span class="note">no swaps decoded yet</span>`; return; }
+  const rows = json.swaps.map((s) => `<tr>
+    <td class="mut">${ts(s.timestamp)}</td>
+    <td class="mut">${esc(s.dex)}</td>
+    <td>${amt(s.amount_in, s.decimals_in)} ${esc(s.symbol_in || "?")} → ${amt(s.amount_out, s.decimals_out)} ${esc(s.symbol_out || "?")}</td>
+    <td class="num">${usd(s.usd_value)}</td>
+    <td>${addrLink(s.wallet_address)}</td>
+    <td>${txLink(s.transaction_hash)}</td>
+  </tr>`).join("");
+  $("swapsWrap").innerHTML = `<div class="scroll"><table>
+    <thead><tr><th>time</th><th>dex</th><th>trade</th><th class="num">USD</th><th>wallet</th><th>tx</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
 
 /* ---- wallet ---- */
-let walletTxs = [];
-let walletAddr = null;
-
+let walletTxs = [], walletAddr = null;
 async function lookupWallet() {
   const addr = $("walletInput").value.trim().toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(addr)) {
@@ -153,79 +309,53 @@ async function lookupWallet() {
   $("walletBtn").disabled = true;
   $("walletSummary").innerHTML = `<div class="note">loading…</div>`;
   $("walletTxWrap").innerHTML = "";
-
   const summary = await api(`/api/v1/wallets/${addr}`);
   if (summary.ok) {
     const r = summary.json;
     $("walletSummary").innerHTML = `<dl class="kv">
-      <dt>realized pnl</dt><dd>${esc(r.realized_pnl_usd ?? r.realized_pnl ?? "—")}</dd>
-      <dt>unrealized pnl</dt><dd>${esc(r.unrealized_pnl_usd ?? r.unrealized_pnl ?? "—")}</dd>
-      <dt>trades</dt><dd>${esc(r.trade_count ?? "—")}</dd>
+      <dt>realized pnl</dt><dd>${esc(r.realized_pnl ?? "—")}</dd>
+      <dt>unrealized pnl</dt><dd>${esc(r.unrealized_pnl ?? "—")}</dd>
+      <dt>trades</dt><dd>${esc(r.total_trades ?? "—")}</dd>
       <dt>win rate</dt><dd>${esc(r.win_rate ?? "—")}</dd>
-      <dt>pnl engine</dt><dd>${esc(r.pnl_engine_version ?? "—")}</dd>
     </dl>`;
   } else if (summary.status === 404) {
-    $("walletSummary").innerHTML = `<div class="note">No analytics summary yet — <code>${esc(summary.json?.error || "not_indexed_yet")}</code>. Wallet PnL is Phase 3; raw transactions below still work.</div>`;
+    $("walletSummary").innerHTML = `<div class="note">No analytics summary yet — <code>${esc(summary.json?.error)}</code>. Wallet PnL is Phase 3; raw transactions below still work.</div>`;
   } else {
     $("walletSummary").innerHTML = `<div class="err">${esc(summary.json?.error || summary.status)}</div>`;
   }
-
   await loadMoreTxs();
   $("walletBtn").disabled = false;
 }
-
 async function loadMoreTxs() {
   const before = walletTxs.length ? walletTxs[walletTxs.length - 1].block_number : "";
   const q = new URLSearchParams({ limit: "25" });
   if (before) q.set("before", before);
   const res = await api(`/api/v1/wallets/${walletAddr}/transactions?${q}`);
-  if (!res.ok) {
-    $("walletTxWrap").innerHTML = `<div class="err">tx query failed: ${esc(res.json?.error || res.status)}</div>`;
-    return;
-  }
+  if (!res.ok) { $("walletTxWrap").innerHTML = `<div class="err">tx query failed: ${esc(res.json?.error)}</div>`; return; }
   walletTxs = walletTxs.concat(res.json.transactions || []);
   renderTxs(res.json.transactions?.length === 25);
 }
-
 function renderTxs(more) {
-  if (!walletTxs.length) {
-    $("walletTxWrap").innerHTML = `<div class="note">No transactions found for this address in the indexed range.</div>`;
-    return;
-  }
+  if (!walletTxs.length) { $("walletTxWrap").innerHTML = `<div class="note">No transactions found in the indexed range.</div>`; return; }
   const rows = walletTxs.map((t) => {
-    const dir = t.from_address === walletAddr ? `<span class="tag out">OUT</span>` : `<span class="tag in">IN</span>`;
-    const st = String(t.status) === "1" || t.status === true
-      ? `<span class="tag ok">ok</span>` : `<span class="tag fail">fail</span>`;
-    return `<tr>
-      <td class="mono">${ts(t.timestamp)}</td>
-      <td class="mono">${esc(t.block_number)}</td>
-      <td>${dir}</td>
-      <td><a href="${explorerBase}/address/${t.from_address}" target="_blank">${short(t.from_address)}</a></td>
-      <td><a href="${explorerBase}/address/${t.to_address}" target="_blank">${short(t.to_address)}</a></td>
-      <td>${weiToEth(t.value)} ETH</td>
-      <td class="mono">${esc(t.gas_used ?? "—")}</td>
-      <td>${st}</td>
-      <td><a href="${explorerBase}/tx/${t.hash}" target="_blank">${short(t.hash)}</a></td>
-    </tr>`;
+    const dir = t.from_address === walletAddr
+      ? `<span class="tag sell">OUT</span>` : `<span class="tag buy">IN</span>`;
+    return `<tr><td class="mut">${ts(t.timestamp)}</td><td class="mut">${esc(t.block_number)}</td>
+      <td>${dir}</td><td>${addrLink(t.from_address)}</td><td>${addrLink(t.to_address)}</td>
+      <td class="num">${amt(t.value, 18)} ETH</td><td>${txLink(t.hash)}</td></tr>`;
   }).join("");
-  $("walletTxWrap").innerHTML = `
-    <div class="scroll"><table>
-      <thead><tr><th>time (UTC)</th><th>block</th><th>dir</th><th>from</th><th>to</th><th>value</th><th>gas used</th><th>status</th><th>tx</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    <div class="row" style="margin-top:10px">
-      <span class="note">${walletTxs.length} loaded</span>
-      ${more ? `<button class="ghost" id="moreBtn">Load more</button>` : `<span class="note">— end —</span>`}
-    </div>`;
+  $("walletTxWrap").innerHTML = `<div class="scroll"><table>
+    <thead><tr><th>time</th><th>block</th><th>dir</th><th>from</th><th>to</th><th class="num">value</th><th>tx</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div class="row" style="margin-top:10px"><span class="note">${walletTxs.length} loaded</span>
+    ${more ? `<button class="ghost" id="moreBtn">Load more</button>` : `<span class="note">— end —</span>`}</div>`;
   if (more) $("moreBtn").onclick = () => { $("moreBtn").disabled = true; loadMoreTxs(); };
 }
 
-/* ---- token ---- */
+/* ---- token lookup ---- */
 async function lookupToken() {
   const addr = $("tokenInput").value.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{40}$/.test(addr)) {
-    $("tokenResult").innerHTML = `<div class="err">Not a valid 0x address.</div>`; return;
-  }
+  if (!/^0x[0-9a-f]{40}$/.test(addr)) { $("tokenResult").innerHTML = `<div class="err">Not a valid 0x address.</div>`; return; }
   $("tokenBtn").disabled = true;
   $("tokenResult").innerHTML = `<div class="note">loading…</div>`;
   const res = await api(`/api/v1/tokens/${addr}`);
@@ -235,24 +365,34 @@ async function lookupToken() {
       <dt>symbol</dt><dd>${esc(r.symbol ?? "—")}</dd>
       <dt>name</dt><dd>${esc(r.name ?? "—")}</dd>
       <dt>decimals</dt><dd>${esc(r.decimals ?? "—")}</dd>
-      <dt>price</dt><dd>${esc(r.price ?? "—")}</dd>
-      <dt>market cap</dt><dd>${esc(r.market_cap ?? "null (unknown supply)")}</dd>
-      <dt>fdv</dt><dd>${esc(r.fdv ?? "—")}</dd>
-      <dt>liquidity</dt><dd>${esc(r.liquidity_usd ?? "—")}</dd>
-      <dt>price confidence</dt><dd>${esc(r.price_confidence ?? "—")}</dd>
+      <dt>type</dt><dd>${esc(r.token_type ?? "—")}</dd>
+      <dt>~last price</dt><dd>${price(r.last_price)}</dd>
+      <dt>24h volume</dt><dd>${usd(r.vol_24h)}</dd>
+      <dt>24h swaps</dt><dd>${esc(r.swap_count_24h ?? "—")}</dd>
+      <dt>pools</dt><dd>${esc(r.pool_count ?? "—")}</dd>
+      <dt>total supply</dt><dd>${esc(r.total_supply ?? "—")}</dd>
+      <dt>market cap</dt><dd>${r.market_cap ?? "null (circulating supply unknown)"}</dd>
     </dl>`;
   } else if (res.status === 404) {
-    $("tokenResult").innerHTML = `<div class="note">Not found — <code>${esc(res.json?.error || "token_not_found")}</code>. Expected in Phase 1: token discovery lands in Phase 2.</div>`;
+    $("tokenResult").innerHTML = `<div class="note">Not found — <code>${esc(res.json?.error)}</code>. Only discovered (traded) tokens are indexed.</div>`;
   } else {
     $("tokenResult").innerHTML = `<div class="err">${esc(res.json?.error || res.status)}</div>`;
   }
   $("tokenBtn").disabled = false;
 }
 
+/* ---- wiring ---- */
 $("walletBtn").onclick = lookupWallet;
 $("walletInput").addEventListener("keydown", (e) => { if (e.key === "Enter") lookupWallet(); });
 $("tokenBtn").onclick = lookupToken;
 $("tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") lookupToken(); });
+
+async function refresh() {
+  await pollHealth();
+  await Promise.all([loadMarket(), loadTokens(), loadPairs(), loadSwaps()]);
+}
+refresh();
+setInterval(refresh, 8000);
 </script>
 </body>
 </html>

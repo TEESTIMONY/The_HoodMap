@@ -4,6 +4,7 @@ import { httpClient } from "./rpcClient.js";
 import { reconcileBeforeBlock } from "./reorg.js";
 import { getOrCreateIndexerState } from "../db/indexerState.js";
 import { saveBlock } from "../db/rawWrites.js";
+import { decodeBlock } from "../decode/index.js";
 import { pool } from "../db/pool.js";
 import { mapWithConcurrency } from "../lib/concurrency.js";
 import type { RawBlock, RawReceipt } from "./types.js";
@@ -102,6 +103,22 @@ async function processBlock(blockNumber: bigint): Promise<bigint> {
     },
     "block indexed"
   );
+
+  // Derived layer (transfers / swaps / liquidity). Best-effort: raw data is
+  // already committed, so a decode failure is logged and left for re-decode
+  // rather than stalling the indexer.
+  try {
+    const decoded = await decodeBlock(block, receipts);
+    if (decoded.swaps || decoded.transfers || decoded.liquidityEvents) {
+      logger.info({ block: blockNumber.toString(), ...decoded }, "block decoded");
+    }
+  } catch (err) {
+    logger.error(
+      { block: blockNumber.toString(), err: (err as Error).message },
+      "decode failed — raw data safe, re-decode later"
+    );
+  }
+
   return blockNumber + 1n;
 }
 

@@ -1,4 +1,4 @@
-# Robinhood Chain Analytics — Phase 1 Foundation
+# Robinhood Chain Analytics — Phase 2a
 
 Dexscreener-style market discovery + wallet PnL intelligence for Robinhood Chain
 (chain ID 4663 mainnet / 46630 testnet), an Arbitrum-Orbit EVM L2.
@@ -80,14 +80,29 @@ Production: `npm run build` then `npm run start:migrate && npm run start:api`
    `price × total_supply` — when circulating supply isn't known.
    `token_statistics.price_confidence` exists so the API can surface uncertainty.
 
-## Not yet built (by design — Phase 1 only)
+## Phase 2a — DEX decode (done)
 
-- DEX adapters (Uniswap V2/V3/V4, Pleiades) — `src/dex/adapter.ts` defines the
-  interface; implementations are Phase 2.
-- Trade reconstruction / activity classification (swap vs transfer vs bridge vs LP)
-- PnL engine (average-cost basis)
-- Redis caching layer for hot reads; background workers
-- Frontend (Next.js)
+- `src/dex/` — Uniswap **V2 + V3** decoders behind `AmmDecoder`; lazy pool
+  discovery via on-chain `token0/token1/fee/factory` (`poolIdentify`), factory →
+  DEX attribution, `*_fork` fallback for unknown factories
+- `src/chain/erc20.ts` — multicall token-metadata reader (string + bytes32),
+  drives token discovery into `tokens`
+- `src/decode/` — second block stage: `Transfer` → `token_transfers`,
+  `Swap` → `swaps`, `Mint`/`Burn` → `liquidity_events`, wallet upserts
+- `src/analytics/price.ts` — USDG=$1 anchor + one WETH hop → `swaps.usd_value`
+- API: `/api/v1/tokens`, `/api/v1/pairs`, `/api/v1/pairs/:a`,
+  `/api/v1/pairs/:a/swaps`, `/api/v1/swaps/recent`, `/api/v1/stats`
+- `npm run db:reset` — truncate data tables (chain switch / re-index)
+
+## Not yet built
+
+- Phase 2b: `token_statistics` / `pair_statistics` rollup workers (24h aggregates
+  are computed inline in the API for now), price candles, Uniswap V4 + Pleiades,
+  a Next.js frontend
+- Phase 3: trade reconstruction, PnL engine, wallet analytics
+- Redis caching layer; async decode worker (decode currently runs inline in the
+  indexer — fine at current volume, but cold-start pool/token discovery makes the
+  first blocks slow)
 
 ## Known limitations
 
@@ -95,8 +110,9 @@ Production: `npm run build` then `npm run start:migrate && npm run start:api`
   sequencer feed, not JSON-RPC. Real-time is currently poll-based
   (`INDEXER_POLL_INTERVAL_MS`). Set `RPC_WS_URL` to a provider WS (e.g. Alchemy)
   and add an `eth_subscribe` path in Phase 2.
-- Token/pool/wallet discovery is not implemented, so `tokens` / `pools` stay empty
-  in Phase 1; the token endpoint will 404 until Phase 2 populates them.
+- Token/pool discovery is trade-driven: a token or pool only appears once it's
+  been swapped through. `swaps.price` holds the *non-quote* side's USD price, so
+  the WETH/USDG rows show each other's price — real per-token pricing is 2b.
 - `eth_getBlockReceipts` support on the target RPC is auto-detected at runtime;
   if absent the indexer falls back to bounded per-tx receipt calls (slower).
 
