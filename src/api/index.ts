@@ -9,6 +9,7 @@ import { isAddress, normalizeAddress } from "../lib/address.js";
 import { contracts } from "../dex/contracts.js";
 import { discoverTokenOnDemand, persistPool } from "../decode/entities.js";
 import { identifyPool } from "../dex/poolIdentify.js";
+import { fetchV4PoolKey } from "../dex/uniswapV4.js";
 import { computeTokenStats } from "../analytics/statistics.js";
 
 const app = Fastify({ logger: false });
@@ -22,6 +23,14 @@ function requireAddress(raw: string): `0x${string}` {
     throw err;
   }
   return normalizeAddress(raw);
+}
+
+/** A pool reference is a 20-byte address (V2/V3) or a 32-byte PoolId (V4). */
+function requirePoolRef(raw: string): string {
+  if (/^0x[0-9a-fA-F]{40}$/.test(raw) || /^0x[0-9a-fA-F]{64}$/.test(raw)) return raw.toLowerCase();
+  const err = new Error("invalid_pool_ref") as Error & { statusCode: number };
+  err.statusCode = 400;
+  throw err;
 }
 
 app.setErrorHandler((err, _req, reply) => {
@@ -189,12 +198,15 @@ const PAIR_DETAIL_SQL = `
    WHERE p.chain_id = $1 AND p.address = $2`;
 
 app.get<{ Params: { address: string } }>("/api/v1/pairs/:address", async (req, reply) => {
-  const address = requireAddress(req.params.address);
+  const address = requirePoolRef(req.params.address);
   let result = await query(PAIR_DETAIL_SQL, [config.CHAIN_ID, address]);
 
   if (!result.rows[0]) {
-    // Unknown pool — confirm + classify it on-chain, then persist.
-    const kp = await identifyPool(address as `0x${string}`).catch(() => null);
+    // Unknown pool — resolve it on-chain, then persist.
+    const isPoolId = address.length === 66;
+    const kp = isPoolId
+      ? await fetchV4PoolKey(address as `0x${string}`).catch(() => null)
+      : await identifyPool(address as `0x${string}`).catch(() => null);
     if (!kp) return reply.status(404).send({ error: "not_a_pool_or_unreachable" });
     await discoverTokenOnDemand(kp.token0).catch(() => null);
     await discoverTokenOnDemand(kp.token1).catch(() => null);
@@ -208,7 +220,7 @@ app.get<{ Params: { address: string } }>("/api/v1/pairs/:address", async (req, r
 app.get<{ Params: { address: string }; Querystring: { limit?: string; before?: string } }>(
   "/api/v1/pairs/:address/swaps",
   async (req) => {
-    const address = requireAddress(req.params.address);
+    const address = requirePoolRef(req.params.address);
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const before = req.query.before ? Number(req.query.before) : null;
     const result = await query(

@@ -1,11 +1,19 @@
 import { UniswapV2Decoder } from "./uniswapV2.js";
 import { UniswapV3Decoder } from "./uniswapV3.js";
+import { UniswapV4Decoder } from "./uniswapV4.js";
+import { V4_SWAP_TOPIC } from "./events.js";
 import type { AmmDecoder } from "./adapter.js";
 
 export const ammDecoders: readonly AmmDecoder[] = [
   new UniswapV2Decoder(),
   new UniswapV3Decoder(),
+  new UniswapV4Decoder(),
 ];
+
+/** V4 swap logs are addressed by PoolId (topic1), not the emitting contract. */
+export function isV4SwapTopic(topic0: string | undefined): boolean {
+  return topic0 === V4_SWAP_TOPIC;
+}
 
 const bySwapTopic = new Map<string, AmmDecoder>();
 const byLiquidityTopic = new Map<string, { decoder: AmmDecoder; type: "add" | "remove" }>();

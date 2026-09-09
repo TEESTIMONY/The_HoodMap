@@ -6,6 +6,7 @@ import { normalizeAddress } from "../lib/address.js";
 import { mapWithConcurrency } from "../lib/concurrency.js";
 import { fetchTokenMetadata } from "../chain/erc20.js";
 import { identifyPool } from "../dex/poolIdentify.js";
+import { fetchV4PoolKey } from "../dex/uniswapV4.js";
 import { contracts, isStablecoin, isWeth } from "../dex/contracts.js";
 import type { KnownPool } from "../dex/adapter.js";
 
@@ -97,15 +98,19 @@ function rowToPool(r: {
   token1: string;
   fee_tier: string | null;
   factory: string | null;
+  hooks?: string | null;
+  tick_spacing?: number | null;
 }): KnownPool {
   return {
     address: r.address as Hex,
     dex: r.dex,
-    poolType: (r.pool_type as "v2" | "v3") ?? "v2",
+    poolType: (r.pool_type as "v2" | "v3" | "v4") ?? "v2",
     token0: r.token0 as Hex,
     token1: r.token1 as Hex,
     feeTier: r.fee_tier != null ? Number(r.fee_tier) : null,
     factory: (r.factory as Hex) ?? null,
+    hooks: (r.hooks as Hex) ?? null,
+    tickSpacing: r.tick_spacing ?? null,
   };
 }
 
@@ -241,26 +246,91 @@ export async function sweepTokenMetadata(limit = 200): Promise<number> {
   return done;
 }
 
-/** Insert a known pool + warm the cache. Idempotent. */
+/** Insert a known pool (V2/V3/V4) + warm the cache. Idempotent. */
 export async function persistPool(kp: KnownPool, createdBlock: bigint): Promise<void> {
   await query(
     `INSERT INTO pools
-       (chain_id, address, dex, pool_type, token0, token1, fee_tier, factory, created_block)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       (chain_id, address, dex, pool_type, token0, token1, fee_tier, factory,
+        hooks, tick_spacing, created_block)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT (chain_id, address) DO NOTHING`,
     [
       config.CHAIN_ID,
-      kp.address,
+      kp.address.toLowerCase(),
       kp.dex,
       kp.poolType,
       kp.token0,
       kp.token1,
       kp.feeTier,
       kp.factory,
+      kp.hooks ?? null,
+      kp.tickSpacing ?? null,
       createdBlock.toString(),
     ]
   );
   poolCache.set(kp.address.toLowerCase(), kp);
+}
+
+/** Bulk-insert V4 pools discovered from Initialize events. */
+export async function persistV4Pools(pools: KnownPool[], createdBlock: bigint): Promise<void> {
+  if (pools.length === 0) return;
+  const values: unknown[] = [config.CHAIN_ID, createdBlock.toString()];
+  const rows = pools.map((p, i) => {
+    const b = i * 8;
+    values.push(p.address.toLowerCase(), p.token0, p.token1, p.feeTier, p.factory, p.hooks ?? null, p.tickSpacing ?? null, p.dex);
+    return `($1, $${b + 3}, $${b + 10}, 'v4', $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9}, $2)`;
+  });
+  await query(
+    `INSERT INTO pools
+       (chain_id, address, dex, pool_type, token0, token1, fee_tier, factory, hooks, tick_spacing, created_block)
+     VALUES ${rows.join(", ")}
+     ON CONFLICT (chain_id, address) DO NOTHING`,
+    values
+  );
+  for (const p of pools) poolCache.set(p.address.toLowerCase(), p);
+}
+
+/**
+ * Resolve V4 PoolIds → KnownPool. V4 pools are only known from their Initialize
+ * event; a PoolId we've never initialised is looked up via
+ * PositionManager.poolKeys (bounded RPC). `ensureTok` links token discovery.
+ */
+export async function resolveV4Pools(
+  poolIds: string[],
+  createdBlock: bigint
+): Promise<Map<string, KnownPool>> {
+  const out = new Map<string, KnownPool>();
+  const missing: string[] = [];
+  for (const raw of new Set(poolIds.map((p) => p.toLowerCase()))) {
+    const cached = poolCache.get(raw);
+    if (cached) out.set(raw, cached);
+    else if (!notPool.has(raw)) missing.push(raw);
+  }
+  if (missing.length === 0) return out;
+
+  const { rows } = await query(
+    `SELECT address, dex, pool_type, token0, token1, fee_tier, factory, hooks, tick_spacing
+       FROM pools WHERE chain_id = $1 AND address = ANY($2)`,
+    [config.CHAIN_ID, missing]
+  );
+  for (const r of rows as Parameters<typeof rowToPool>[0][]) {
+    const kp = rowToPool(r);
+    poolCache.set(kp.address, kp);
+    out.set(kp.address, kp);
+  }
+
+  const undiscovered = missing.filter((a) => !out.has(a));
+  await mapWithConcurrency(undiscovered, RPC_CONCURRENCY, async (poolId) => {
+    const kp = await fetchV4PoolKey(poolId as Hex).catch(() => null);
+    if (!kp) {
+      notPool.add(poolId);
+      return;
+    }
+    await ensureTokens([kp.token0, kp.token1], createdBlock);
+    await persistPool(kp, createdBlock);
+    out.set(poolId, kp);
+  });
+  return out;
 }
 
 /**

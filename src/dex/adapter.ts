@@ -20,14 +20,18 @@ export interface TxContext {
 }
 
 export interface KnownPool {
+  /** Pool contract address (V2/V3) or bytes32 PoolId (V4). */
   address: Hex;
-  /** uniswap_v2 | uniswap_v3 | uniswap_v2_fork | uniswap_v3_fork */
+  /** uniswap_v2 | uniswap_v3 | uniswap_v4 | *_fork */
   dex: string;
-  poolType: "v2" | "v3";
+  poolType: "v2" | "v3" | "v4";
   token0: Hex;
   token1: Hex;
   feeTier: number | null;
   factory: Hex | null;
+  /** V4 only. */
+  hooks?: Hex | null;
+  tickSpacing?: number | null;
 }
 
 export interface DecodedSwap {

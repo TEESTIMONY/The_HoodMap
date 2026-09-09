@@ -20,6 +20,12 @@ import {
   V3_BURN_TOPIC,
   V3_POOL_CREATED_ABI,
   V3_POOL_CREATED_TOPIC,
+  V4_INITIALIZE_ABI,
+  V4_INITIALIZE_TOPIC,
+  V4_SWAP_ABI,
+  V4_SWAP_TOPIC,
+  V4_MODIFY_LIQUIDITY_ABI,
+  V4_MODIFY_LIQUIDITY_TOPIC,
 } from "./events.js";
 
 const cases: [string, readonly unknown[], string][] = [
@@ -32,6 +38,9 @@ const cases: [string, readonly unknown[], string][] = [
   ["V3 Mint", V3_MINT_ABI, V3_MINT_TOPIC],
   ["V3 Burn", V3_BURN_ABI, V3_BURN_TOPIC],
   ["V3 PoolCreated", V3_POOL_CREATED_ABI, V3_POOL_CREATED_TOPIC],
+  ["V4 Initialize", V4_INITIALIZE_ABI, V4_INITIALIZE_TOPIC],
+  ["V4 Swap", V4_SWAP_ABI, V4_SWAP_TOPIC],
+  ["V4 ModifyLiquidity", V4_MODIFY_LIQUIDITY_ABI, V4_MODIFY_LIQUIDITY_TOPIC],
 ];
 
 for (const [name, abi, topic] of cases) {

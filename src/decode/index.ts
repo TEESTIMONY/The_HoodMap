@@ -7,13 +7,15 @@ import { addressFromTopic, normalizeAddress } from "../lib/address.js";
 import type { RawBlock, RawReceipt } from "../indexer/types.js";
 import type { DecodedLiquidityEvent, DecodedSwap, RawLogInput, TxContext } from "../dex/adapter.js";
 import {
+  isV4SwapTopic,
   liquidityDecoderForTopic,
   swapDecoderForTopic,
   watchedLiquidityTopics,
   watchedSwapTopics,
 } from "../dex/registry.js";
-import { ERC20_TRANSFER_TOPIC } from "../dex/events.js";
-import { decimalsOf, ensureTokens, resolvePools } from "./entities.js";
+import { ERC20_TRANSFER_TOPIC, V4_INITIALIZE_TOPIC, V4_MODIFY_LIQUIDITY_TOPIC } from "../dex/events.js";
+import { parseV4Initialize } from "../dex/uniswapV4.js";
+import { decimalsOf, ensureTokens, persistV4Pools, resolvePools, resolveV4Pools } from "./entities.js";
 import { priceSwaps } from "../analytics/price.js";
 
 export interface DecodeSummary {
@@ -102,10 +104,36 @@ export async function decodeBlock(
   const liquidityLogs = logs.filter(
     ({ log }) => log.topics[0] && watchedLiquidityTopics.has(log.topics[0])
   );
+  const v4InitLogs = logs.filter(({ log }) => log.topics[0] === V4_INITIALIZE_TOPIC);
+
+  // The "pool key" is the emitting contract for V2/V3, but topic1 (the PoolId)
+  // for V4. Look up each family against its own table.
+  const poolKey = (log: RawLogInput): string =>
+    isV4SwapTopic(log.topics[0]) || log.topics[0] === V4_MODIFY_LIQUIDITY_TOPIC
+      ? (log.topics[1] ?? log.address)
+      : log.address;
+  const isV4 = (log: RawLogInput): boolean =>
+    isV4SwapTopic(log.topics[0]) || log.topics[0] === V4_MODIFY_LIQUIDITY_TOPIC;
 
   // ---- discovery (RPC, outside the write txn) ----
-  const poolAddrs = [...new Set([...swapLogs, ...liquidityLogs].map(({ log }) => log.address))];
-  const pools = await resolvePools(poolAddrs, block.number);
+  const eventLogs = [...swapLogs, ...liquidityLogs];
+  const v2v3Addrs = [...new Set(eventLogs.filter((e) => !isV4(e.log)).map((e) => e.log.address))];
+  const v4Ids = [...new Set(eventLogs.filter((e) => isV4(e.log)).map((e) => e.log.topics[1] ?? ""))].filter(Boolean);
+
+  // Persist V4 pools from Initialize events first (so their swaps resolve).
+  const newV4 = v4InitLogs
+    .map(({ log }) => parseV4Initialize(log))
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+  if (newV4.length) {
+    await ensureTokens(newV4.flatMap((p) => [p.token0, p.token1]), block.number);
+    await persistV4Pools(newV4, block.number);
+  }
+
+  const [v2v3Pools, v4Pools] = await Promise.all([
+    resolvePools(v2v3Addrs, block.number),
+    resolveV4Pools(v4Ids, block.number),
+  ]);
+  const pools = new Map([...v2v3Pools, ...v4Pools]);
 
   const transfers = transferLogs
     .map(({ log, ctx }) => parseTransfer(log, ctx))
@@ -118,7 +146,7 @@ export async function decodeBlock(
   // ---- decode ----
   const swaps: { swap: DecodedSwap; dex: string }[] = [];
   for (const { log, ctx } of swapLogs) {
-    const pool = pools.get(log.address);
+    const pool = pools.get(poolKey(log));
     const decoder = swapDecoderForTopic(log.topics[0]);
     if (!pool || !decoder) continue;
     const swap = decoder.decodeSwap(log, pool, ctx);
@@ -127,7 +155,7 @@ export async function decodeBlock(
 
   const liquidityEvents: { event: DecodedLiquidityEvent; dex: string }[] = [];
   for (const { log, ctx } of liquidityLogs) {
-    const pool = pools.get(log.address);
+    const pool = pools.get(poolKey(log));
     const match = liquidityDecoderForTopic(log.topics[0]);
     if (!pool || !match) continue;
     const event = match.decoder.decodeLiquidity(log, pool, ctx);

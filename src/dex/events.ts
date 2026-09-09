@@ -63,3 +63,23 @@ export const V3_BURN_ABI = parseAbi([
 ]);
 export const V3_BURN_TOPIC =
   "0x0c396cd989a39f4459b5fa1aed6a9a8dcdbc45908acfd67e028cd568da98982c";
+
+// ---- Uniswap V4 (singleton PoolManager; pools identified by bytes32 id) ----
+
+export const V4_INITIALIZE_ABI = parseAbi([
+  "event Initialize(bytes32 indexed id, address indexed currency0, address indexed currency1, uint24 fee, int24 tickSpacing, address hooks, uint160 sqrtPriceX96, int24 tick)",
+]);
+export const V4_INITIALIZE_TOPIC =
+  "0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438";
+
+export const V4_SWAP_ABI = parseAbi([
+  "event Swap(bytes32 indexed id, address indexed sender, int128 amount0, int128 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint24 fee)",
+]);
+export const V4_SWAP_TOPIC =
+  "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f";
+
+export const V4_MODIFY_LIQUIDITY_ABI = parseAbi([
+  "event ModifyLiquidity(bytes32 indexed id, address indexed sender, int24 tickLower, int24 tickUpper, int256 liquidityDelta, bytes32 salt)",
+]);
+export const V4_MODIFY_LIQUIDITY_TOPIC =
+  "0xf208f4912782fd25c7f114ca3723a2d5dd6f3bcc3ac8db5af63baa85f711d5ec";

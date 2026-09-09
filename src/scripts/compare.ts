@@ -62,12 +62,15 @@ async function main(): Promise<void> {
       `  ${String(label).padEnd(15)} ${String(o ?? "—").padEnd(15)} ${String(t ?? "—").padEnd(15)} ${pct(o as number, t as number)}`
     );
   }
+  const dsVenues = new Set(pairs.flatMap((p) => (p.labels as string[]) ?? []));
   console.log(
     `\n  our pools: ${ours?.pool_count ?? 0}   dexscreener pairs: ${pairs.length}` +
-      (pairs.some((p) => (p.labels as string[])?.includes("v4"))
-        ? "   (includes Uniswap v4 — we don't index v4 yet)"
-        : "")
+      (dsVenues.size ? `   (${[...dsVenues].join(", ")})` : "")
   );
+  console.log(
+    `  gap is usually pool coverage — run 'npm run backfill:pools' to completion,`
+  );
+  console.log(`  and keep the indexer running for volume.`);
   console.log(`  our confidence: ${ours?.price_confidence ?? "—"}\n`);
 }
 

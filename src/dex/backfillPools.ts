@@ -4,13 +4,16 @@ import { pool, query } from "../db/pool.js";
 import { config } from "../config/index.js";
 import { logger } from "../config/logger.js";
 import { normalizeAddress } from "../lib/address.js";
-import { insertBareTokens, persistPoolsBatch } from "../decode/entities.js";
+import { insertBareTokens, persistPoolsBatch, persistV4Pools } from "../decode/entities.js";
 import { dexForFactory } from "./poolIdentify.js";
+import { parseV4Initialize } from "./uniswapV4.js";
 import {
   V2_PAIR_CREATED_ABI,
   V2_PAIR_CREATED_TOPIC,
   V3_POOL_CREATED_ABI,
   V3_POOL_CREATED_TOPIC,
+  V4_INITIALIZE_ABI,
+  V4_INITIALIZE_TOPIC,
 } from "./events.js";
 import type { KnownPool } from "./adapter.js";
 
@@ -23,7 +26,7 @@ const PROGRESS_EVERY_MS = 15_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const FACTORY_EVENTS = [V2_PAIR_CREATED_ABI[0], V3_POOL_CREATED_ABI[0]];
+const FACTORY_EVENTS = [V2_PAIR_CREATED_ABI[0], V3_POOL_CREATED_ABI[0], V4_INITIALIZE_ABI[0]];
 
 function looksLikeRangeError(err: unknown): boolean {
   const m = (err as Error)?.message?.toLowerCase() ?? "";
@@ -58,6 +61,14 @@ async function setCursor(block: bigint): Promise<void> {
 }
 
 function poolFromLog(log: Log & { eventName?: string; args?: Record<string, unknown> }): KnownPool | null {
+  if (log.topics[0] === V4_INITIALIZE_TOPIC) {
+    return parseV4Initialize({
+      address: (log.address ?? "0x") as `0x${string}`,
+      topics: log.topics as readonly `0x${string}`[],
+      data: log.data,
+      logIndex: log.logIndex ?? 0,
+    });
+  }
   const args = log.args;
   if (!args || !log.address) return null;
   const factory = normalizeAddress(log.address);
@@ -188,7 +199,8 @@ async function runBackfill(): Promise<{ pools: number; scannedTo: bigint }> {
     if (pagePools.length) {
       try {
         await insertBareTokens(pageTokens, from);
-        await persistPoolsBatch(pagePools, from);
+        await persistPoolsBatch(pagePools.filter((p) => p.poolType !== "v4"), from);
+        await persistV4Pools(pagePools.filter((p) => p.poolType === "v4"), from);
         discovered += pagePools.length;
       } catch (err) {
         logger.warn(

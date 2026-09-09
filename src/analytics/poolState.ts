@@ -8,8 +8,13 @@ const BALANCE_OF = parseAbi(["function balanceOf(address) view returns (uint256)
 const SLOT0 = parseAbi([
   "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 a, uint16 b, uint16 c, uint8 d, bool e)",
 ]);
+const V4_STATE = parseAbi([
+  "function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)",
+  "function getLiquidity(bytes32 poolId) view returns (uint128 liquidity)",
+]);
 const MULTICALL_CHUNK = 120;
 const Q96 = 2 ** 96;
+const Q96n = 2n ** 96n;
 
 export interface PoolState {
   pool: KnownPool;
@@ -68,43 +73,76 @@ async function multicallChunked(calls: unknown[]): Promise<CallResult[]> {
  * lives there, not in the balance ratio — concentrated liquidity).
  */
 export async function readPoolStates(pools: KnownPool[]): Promise<PoolState[]> {
-  const balCalls = pools.flatMap((p) => [
+  const nonV4 = pools.map((p, i) => ({ p, i })).filter((x) => x.p.poolType !== "v4");
+  const v4 = pools.map((p, i) => ({ p, i })).filter((x) => x.p.poolType === "v4");
+  const sv = contracts.uniswapV4StateView;
+
+  // V2/V3: balanceOf both tokens; V3 also slot0().
+  const balCalls = nonV4.flatMap(({ p }) => [
     { address: p.token0, abi: BALANCE_OF, functionName: "balanceOf", args: [p.address] },
     { address: p.token1, abi: BALANCE_OF, functionName: "balanceOf", args: [p.address] },
   ]);
-  const v3Idx: number[] = [];
-  pools.forEach((p, i) => {
-    if (p.poolType === "v3") v3Idx.push(i);
-  });
-  const slotCalls = v3Idx.map((i) => ({
-    address: pools[i].address,
-    abi: SLOT0,
-    functionName: "slot0",
-  }));
+  const v3 = nonV4.filter((x) => x.p.poolType === "v3");
+  const slotCalls = v3.map(({ p }) => ({ address: p.address, abi: SLOT0, functionName: "slot0" }));
 
-  const [bals, slots] = await Promise.all([
-    multicallChunked(balCalls),
+  // V4: getSlot0 + getLiquidity on StateView, keyed by PoolId.
+  const v4Calls =
+    sv && v4.length
+      ? v4.flatMap(({ p }) => [
+          { address: sv, abi: V4_STATE, functionName: "getSlot0", args: [p.address] },
+          { address: sv, abi: V4_STATE, functionName: "getLiquidity", args: [p.address] },
+        ])
+      : [];
+
+  const [bals, slots, v4res] = await Promise.all([
+    balCalls.length ? multicallChunked(balCalls) : Promise.resolve([] as CallResult[]),
     slotCalls.length ? multicallChunked(slotCalls) : Promise.resolve([] as CallResult[]),
+    v4Calls.length ? multicallChunked(v4Calls) : Promise.resolve([] as CallResult[]),
   ]);
 
-  const sqrtByIdx = new Map<number, bigint>();
-  v3Idx.forEach((poolIdx, k) => {
+  const bySqrt = new Map<number, bigint>();
+  v3.forEach(({ i }, k) => {
     const res = slots[k];
     if (res?.status !== "success") return;
-    const r = res.result as unknown;
-    const v = Array.isArray(r) ? r[0] : (r as { sqrtPriceX96?: bigint }).sqrtPriceX96;
-    if (typeof v === "bigint" && v > 0n) sqrtByIdx.set(poolIdx, v);
+    const arr = res.result as unknown;
+    const v = Array.isArray(arr) ? arr[0] : (arr as { sqrtPriceX96?: bigint }).sqrtPriceX96;
+    if (typeof v === "bigint" && v > 0n) bySqrt.set(i, v);
+  });
+
+  const byReserve = new Map<number, { r0: bigint; r1: bigint }>();
+  nonV4.forEach(({ i }, k) => {
+    const b0 = bals[k * 2];
+    const b1 = bals[k * 2 + 1];
+    byReserve.set(i, {
+      r0: b0?.status === "success" ? (b0.result as bigint) : 0n,
+      r1: b1?.status === "success" ? (b1.result as bigint) : 0n,
+    });
+  });
+
+  const v4State = new Map<number, { sqrt: bigint; r0: bigint; r1: bigint }>();
+  v4.forEach(({ i, p }, k) => {
+    const s0 = v4res[k * 2];
+    const lq = v4res[k * 2 + 1];
+    if (s0?.status !== "success") return;
+    const arr = s0.result as unknown;
+    const sqrt = Array.isArray(arr) ? (arr[0] as bigint) : (arr as { sqrtPriceX96: bigint }).sqrtPriceX96;
+    const L = lq?.status === "success" ? (lq.result as bigint) : 0n;
+    if (typeof sqrt !== "bigint" || sqrt <= 0n) return;
+    // Estimate token amounts held at the current price (assumes liquidity at
+    // the active tick — a reasonable proxy for TVL of concentrated V4 pools).
+    const amount0 = L > 0n ? (L * Q96n) / sqrt : 0n;
+    const amount1 = L > 0n ? (L * sqrt) / Q96n : 0n;
+    v4State.set(i, { sqrt, r0: amount0, r1: amount1 });
+    void p;
   });
 
   return pools.map((pool, i) => {
-    const b0 = bals[i * 2];
-    const b1 = bals[i * 2 + 1];
-    return {
-      pool,
-      reserve0: b0?.status === "success" ? (b0.result as bigint) : 0n,
-      reserve1: b1?.status === "success" ? (b1.result as bigint) : 0n,
-      sqrtPriceX96: sqrtByIdx.get(i) ?? null,
-    };
+    if (pool.poolType === "v4") {
+      const s = v4State.get(i);
+      return { pool, reserve0: s?.r0 ?? 0n, reserve1: s?.r1 ?? 0n, sqrtPriceX96: s?.sqrt ?? null };
+    }
+    const res = byReserve.get(i) ?? { r0: 0n, r1: 0n };
+    return { pool, reserve0: res.r0, reserve1: res.r1, sqrtPriceX96: bySqrt.get(i) ?? null };
   });
 }
 
