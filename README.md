@@ -1,4 +1,4 @@
-# Robinhood Chain Analytics — Phase 2a
+# Robinhood Chain Analytics — Phase 2b
 
 Dexscreener-style market discovery + wallet PnL intelligence for Robinhood Chain
 (chain ID 4663 mainnet / 46630 testnet), an Arbitrum-Orbit EVM L2.
@@ -102,11 +102,24 @@ Production: `npm run build` then `npm run start:migrate && npm run start:api`
   `/api/v1/pairs/:a/swaps`, `/api/v1/swaps/recent`, `/api/v1/stats`
 - `npm run db:reset` — truncate data tables (chain switch / re-index)
 
+## Phase 2b — statistics engine (done)
+
+- `src/analytics/poolState.ts` — reads pool token balances (works for V2 + V3),
+  values both sides in USD (stablecoin anchor + WETH hop + 2-pass propagation
+  through tokens priced in pass 1)
+- `src/analytics/statistics.ts` — recomputes `token_statistics` + `pair_statistics`
+  for every traded token/pool: price, price in WETH, liquidity, FDV, 1h/6h/24h
+  volume, buy/sell counts, `price_confidence` (high/medium/low by pooled depth)
+- `src/workers/statistics.ts` — runs it every 45s; `npm run dev:stats`, and
+  `npm run dev` now runs indexer + api + stats together
+- Market cap: shown = FDV (price × total supply). No circulating-supply feed, so
+  it's flagged, not presented as exact — low-confidence prices render muted.
+- API `/api/v1/tokens`, `/pairs`, `/tokens/:a`, `/pairs/:a` now read the
+  precomputed tables (fast at chain scale); `/stats` gains total liquidity.
+
 ## Not yet built
 
-- Phase 2b: `token_statistics` / `pair_statistics` rollup workers (24h aggregates
-  are computed inline in the API for now), price candles, Uniswap V4 + Pleiades,
-  a Next.js frontend
+- Price candles / charts, Uniswap V4 + Pleiades, a Next.js frontend
 - Phase 3: trade reconstruction, PnL engine, wallet analytics
 - Redis caching layer; async decode worker (decode currently runs inline in the
   indexer — fine at current volume, but cold-start pool/token discovery makes the

@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 const targets = [
   { name: "indexer", entry: "src/indexer/index.ts", color: "\x1b[36m" }, // cyan
   { name: "api", entry: "src/api/index.ts", color: "\x1b[35m" }, // magenta
+  { name: "stats", entry: "src/workers/statistics.ts", color: "\x1b[33m" }, // yellow
 ];
 const RESET = "\x1b[0m";
 

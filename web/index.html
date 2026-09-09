@@ -197,49 +197,59 @@ async function loadMarket() {
   const { ok, json } = await api("/api/v1/stats");
   if (!ok) { $("marketStats").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
   $("marketStats").innerHTML = [
-    ["tokens", json.tokens], ["pools", json.pools],
+    ["tokens", Number(json.tokens).toLocaleString()], ["pools", Number(json.pools).toLocaleString()],
+    ["liquidity", usd(json.liquidity_usd)], ["volume 24h", usd(json.volume_24h)],
     ["swaps 24h", json.swaps_24h], ["active wallets 24h", json.active_wallets_24h],
-    ["volume 24h", usd(json.volume_24h)],
   ].map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join("");
   $("wethPill").textContent = json.weth_usd ? price(json.weth_usd) : "—";
+}
+
+// Low-confidence prices come from thin pools — show them muted with a ~.
+function confPrice(v, conf) {
+  if (v == null) return "—";
+  const s = price(v);
+  return conf === "low" ? `<span class="mut" title="low confidence — thin liquidity">~${s}</span>` : s;
 }
 
 /* ---- tokens ---- */
 async function loadTokens() {
   const { ok, json } = await api("/api/v1/tokens?limit=100");
   if (!ok) { $("tokensWrap").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
-  if (!json.tokens.length) { $("tokensWrap").innerHTML = `<span class="note">no tokens discovered yet — run the indexer</span>`; return; }
+  if (!json.tokens.length) { $("tokensWrap").innerHTML = `<span class="note">no priced tokens yet — the stats worker runs every ~45s</span>`; return; }
   const rows = json.tokens.map((t) => `<tr>
     <td>${esc(t.symbol || "?")}</td>
-    <td class="mut">${esc(t.name || "")}</td>
-    <td class="mut">${esc(t.token_type)}</td>
-    <td class="num">${price(t.last_price)}</td>
-    <td class="num">${usd(t.vol_24h)}</td>
-    <td class="num">${esc(t.swap_count_24h)}</td>
-    <td class="num">${esc(t.pool_count)}</td>
+    <td class="mut">${esc((t.name || "").slice(0, 28))}</td>
+    <td class="num">${confPrice(t.price, t.price_confidence)}</td>
+    <td class="num mut">${t.price_native ? Number(t.price_native).toPrecision(3) + " Ξ" : "—"}</td>
+    <td class="num">${usd(t.liquidity_usd)}</td>
+    <td class="num">${usd(t.fdv)}</td>
+    <td class="num">${usd(t.volume_24h)}</td>
+    <td class="num mut">${esc(t.buy_count_24h ?? 0)}/${esc(t.sell_count_24h ?? 0)}</td>
+    <td class="num mut">${esc(t.pool_count ?? 0)}</td>
     <td>${addrLink(t.address)}</td>
   </tr>`).join("");
   $("tokensWrap").innerHTML = `<div class="scroll"><table>
-    <thead><tr><th>sym</th><th>name</th><th>type</th><th class="num">~price</th><th class="num">vol 24h</th><th class="num">swaps</th><th class="num">pools</th><th>addr</th></tr></thead>
-    <tbody>${rows}</tbody></table></div>`;
+    <thead><tr><th>sym</th><th>name</th><th class="num">price</th><th class="num">price Ξ</th><th class="num">liquidity</th><th class="num">FDV</th><th class="num">vol 24h</th><th class="num">b/s</th><th class="num">pools</th><th>addr</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div class="note">FDV = price × total supply. Market cap shown = FDV (no circulating-supply feed yet).</div>`;
 }
 
 /* ---- pairs ---- */
 async function loadPairs() {
   const { ok, json } = await api("/api/v1/pairs?limit=100");
   if (!ok) { $("pairsWrap").innerHTML = `<span class="err">${esc(json?.error)}</span>`; return; }
-  if (!json.pairs.length) { $("pairsWrap").innerHTML = `<span class="note">no pools discovered yet</span>`; return; }
+  if (!json.pairs.length) { $("pairsWrap").innerHTML = `<span class="note">no priced pools yet — the stats worker runs every ~45s</span>`; return; }
   const rows = json.pairs.map((p) => `<tr class="clk" data-pair="${p.address}">
     <td>${esc(p.symbol0 || "?")}/${esc(p.symbol1 || "?")}</td>
     <td class="mut">${esc(p.dex)}</td>
     <td class="mut">${p.fee_tier ? (Number(p.fee_tier) / 10000) + "%" : "—"}</td>
-    <td class="num">${usd(p.vol_24h)}</td>
-    <td class="num">${esc(p.swap_count_24h)}</td>
-    <td class="mut">${p.last_swap_at ? ts(p.last_swap_at) : "—"}</td>
+    <td class="num">${usd(p.liquidity_usd)}</td>
+    <td class="num">${usd(p.volume_24h)}</td>
+    <td class="num mut">${esc(p.buy_count_24h ?? 0)}/${esc(p.sell_count_24h ?? 0)}</td>
     <td>${addrLink(p.address)}</td>
   </tr>`).join("");
   $("pairsWrap").innerHTML = `<div class="scroll"><table>
-    <thead><tr><th>pair</th><th>dex</th><th>fee</th><th class="num">vol 24h</th><th class="num">swaps</th><th>last swap</th><th>addr</th></tr></thead>
+    <thead><tr><th>pair</th><th>dex</th><th>fee</th><th class="num">liquidity</th><th class="num">vol 24h</th><th class="num">b/s</th><th>addr</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
   $("pairsWrap").querySelectorAll("tr.clk").forEach((tr) => {
     tr.onclick = () => loadPairDetail(tr.dataset.pair);
@@ -257,8 +267,10 @@ async function loadPairDetail(address) {
   const head = `<dl class="kv">
     <dt>pair</dt><dd>${esc(m.symbol0)}/${esc(m.symbol1)} · ${esc(m.dex)} · ${m.fee_tier ? (Number(m.fee_tier)/10000)+"%" : "—"}</dd>
     <dt>pool</dt><dd>${addrLink(m.address)}</dd>
-    <dt>24h volume</dt><dd>${usd(m.vol_24h)}</dd>
-    <dt>24h swaps</dt><dd>${esc(m.swap_count_24h)} (${esc(m.buys_24h)} buy / ${esc(m.sells_24h)} sell)</dd>
+    <dt>${esc(m.symbol0)} price</dt><dd>${price(m.price0_usd)} &nbsp; (${m.price0_in_1 ? Number(m.price0_in_1).toPrecision(5) : "—"} ${esc(m.symbol1)})</dd>
+    <dt>liquidity</dt><dd>${usd(m.liquidity_usd)}</dd>
+    <dt>24h volume</dt><dd>${usd(m.volume_24h)}</dd>
+    <dt>24h swaps</dt><dd>${esc(m.swap_count_24h ?? 0)} (${esc(m.buys_24h ?? 0)} buy / ${esc(m.sells_24h ?? 0)} sell)</dd>
   </dl>`;
   const rows = (swaps.json?.swaps || []).map((s) => swapRow(s, m.token0)).join("");
   $("pairDetail").innerHTML = head + (rows
@@ -361,20 +373,23 @@ async function lookupToken() {
   const res = await api(`/api/v1/tokens/${addr}`);
   if (res.ok) {
     const r = res.json;
+    const pending = r.price == null;
     $("tokenResult").innerHTML = `<dl class="kv">
-      <dt>symbol</dt><dd>${esc(r.symbol ?? "—")}</dd>
-      <dt>name</dt><dd>${esc(r.name ?? "—")}</dd>
-      <dt>decimals</dt><dd>${esc(r.decimals ?? "—")}</dd>
-      <dt>type</dt><dd>${esc(r.token_type ?? "—")}</dd>
-      <dt>~last price</dt><dd>${price(r.last_price)}</dd>
-      <dt>24h volume</dt><dd>${usd(r.vol_24h)}</dd>
-      <dt>24h swaps</dt><dd>${esc(r.swap_count_24h ?? "—")}</dd>
-      <dt>pools</dt><dd>${esc(r.pool_count ?? "—")}</dd>
-      <dt>total supply</dt><dd>${esc(r.total_supply ?? "—")}</dd>
-      <dt>market cap</dt><dd>${r.market_cap ?? "null (circulating supply unknown)"}</dd>
-    </dl>`;
+      <dt>symbol</dt><dd>${esc(r.symbol ?? "—")} ${esc(r.name ? "· " + r.name : "")}</dd>
+      <dt>type</dt><dd>${esc(r.token_type ?? "—")} · decimals ${esc(r.decimals ?? "—")} ${r.verified ? "· verified" : ""}</dd>
+      <dt>price</dt><dd>${confPrice(r.price, r.price_confidence)} ${r.price_confidence ? `<span class="mut">(${esc(r.price_confidence)} confidence)</span>` : ""}</dd>
+      <dt>price Ξ</dt><dd>${r.price_native ? Number(r.price_native).toPrecision(6) + " WETH" : "—"}</dd>
+      <dt>FDV</dt><dd>${usd(r.fdv)}</dd>
+      <dt>market cap</dt><dd>${usd(r.market_cap)} <span class="mut">(= FDV; no circulating-supply feed)</span></dd>
+      <dt>liquidity</dt><dd>${usd(r.liquidity_usd)}</dd>
+      <dt>volume</dt><dd>24h ${usd(r.volume_24h)} · 6h ${usd(r.volume_6h)} · 1h ${usd(r.volume_1h)}</dd>
+      <dt>24h buys / sells</dt><dd>${esc(r.buy_count_24h ?? 0)} / ${esc(r.sell_count_24h ?? 0)}</dd>
+      <dt>pools</dt><dd>${esc(r.pool_count ?? 0)}</dd>
+      <dt>total supply</dt><dd>${r.total_supply ? amt(r.total_supply, r.decimals) : "—"}</dd>
+      <dt>address</dt><dd>${addrLink(r.address)}</dd>
+    </dl>${pending ? `<div class="note">Stats not computed yet — the worker runs every ~45s (and only prices tokens with pooled liquidity).</div>` : ""}`;
   } else if (res.status === 404) {
-    $("tokenResult").innerHTML = `<div class="note">Not found — <code>${esc(res.json?.error)}</code>. Only discovered (traded) tokens are indexed.</div>`;
+    $("tokenResult").innerHTML = `<div class="note">Not found — <code>${esc(res.json?.error)}</code>.</div>`;
   } else {
     $("tokenResult").innerHTML = `<div class="err">${esc(res.json?.error || res.status)}</div>`;
   }

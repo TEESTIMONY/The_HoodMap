@@ -90,25 +90,19 @@ app.get<{ Params: { address: string }; Querystring: { limit?: string; before?: s
   }
 );
 
+// Everything numeric comes from token_statistics, refreshed every ~45s by the
+// stats worker. A token with no ts row yet (just discovered, not traded) returns
+// identity fields with nulls for price/volume/liquidity.
 const TOKEN_DETAIL_SQL = `
-  SELECT t.*, ts.price, ts.market_cap, ts.fdv, ts.liquidity_usd, ts.volume_24h, ts.price_confidence,
-         agg.vol_24h, agg.swap_count_24h, agg.last_price, agg.pool_count
+  SELECT t.address, t.name, t.symbol, t.decimals, t.total_supply, t.token_type, t.verified,
+         t.logo_url, t.created_block,
+         ts.price, ts.price_native, ts.market_cap, ts.fdv, ts.liquidity_usd,
+         ts.volume_24h, ts.volume_6h, ts.volume_1h,
+         ts.buy_count_24h, ts.sell_count_24h, ts.pool_count,
+         ts.price_confidence, ts.last_trade_at, ts.updated_at AS stats_updated_at
     FROM tokens t
     LEFT JOIN token_statistics ts
       ON ts.token_address = t.address AND ts.chain_id = t.chain_id
-    LEFT JOIN LATERAL (
-      SELECT
-        COALESCE(SUM(s.usd_value) FILTER (WHERE s.timestamp > now() - interval '24 hours'), 0) AS vol_24h,
-        COUNT(*)                  FILTER (WHERE s.timestamp > now() - interval '24 hours') AS swap_count_24h,
-        (SELECT sp.price FROM swaps sp
-          WHERE sp.chain_id = t.chain_id AND (sp.token_in = t.address OR sp.token_out = t.address)
-            AND sp.price IS NOT NULL
-          ORDER BY sp.block_number DESC, sp.log_index DESC LIMIT 1) AS last_price,
-        (SELECT COUNT(*) FROM pools p
-          WHERE p.chain_id = t.chain_id AND (p.token0 = t.address OR p.token1 = t.address)) AS pool_count
-      FROM swaps s
-      WHERE s.chain_id = t.chain_id AND (s.token_in = t.address OR s.token_out = t.address)
-    ) agg ON true
    WHERE t.chain_id = $1 AND t.address = $2`;
 
 app.get<{ Params: { address: string } }>("/api/v1/tokens/:address", async (req, reply) => {
@@ -125,44 +119,26 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address", async (req, 
   return result.rows[0];
 });
 
-// ---- Phase 2a DEX read layer ----
-// 24h aggregates are computed inline here; Phase 2b precomputes them into
-// token_statistics / pair_statistics on a worker.
+// ---- DEX read layer ----
+// Lists are driven by the precomputed token_statistics / pair_statistics tables
+// (only traded entities land there), so they stay fast at chain scale.
 
-// The chain has hundreds of thousands of pools/tokens; almost all never trade.
-// These lists only consider entities that have at least one indexed swap, so the
-// per-row aggregation stays bounded. Phase 2b replaces this with precomputed
-// token_statistics / pair_statistics.
-
-app.get<{ Querystring: { limit?: string } }>("/api/v1/tokens", async (req) => {
+app.get<{ Querystring: { limit?: string; sort?: string } }>("/api/v1/tokens", async (req) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const sortCol =
+    req.query.sort === "liquidity" ? "ts.liquidity_usd" :
+    req.query.sort === "fdv" ? "ts.fdv" :
+    req.query.sort === "recent" ? "ts.last_trade_at" :
+    "ts.volume_24h";
   const result = await query(
-    `WITH traded AS (
-       SELECT token_address FROM (
-         SELECT token_in  AS token_address FROM swaps WHERE chain_id = $1
-         UNION
-         SELECT token_out AS token_address FROM swaps WHERE chain_id = $1
-       ) x
-     )
-     SELECT t.address, t.symbol, t.name, t.decimals, t.token_type, t.verified,
-            agg.vol_24h, agg.swap_count_24h, agg.last_price, agg.pool_count
-       FROM traded
-       JOIN tokens t ON t.chain_id = $1 AND t.address = traded.token_address
-       JOIN LATERAL (
-         SELECT
-           COALESCE(SUM(s.usd_value) FILTER (WHERE s.timestamp > now() - interval '24 hours'), 0) AS vol_24h,
-           COUNT(*)                  FILTER (WHERE s.timestamp > now() - interval '24 hours') AS swap_count_24h,
-           (SELECT sp.price FROM swaps sp
-             WHERE sp.chain_id = $1 AND (sp.token_in = t.address OR sp.token_out = t.address)
-               AND sp.price IS NOT NULL
-             ORDER BY sp.block_number DESC, sp.log_index DESC LIMIT 1) AS last_price,
-           (SELECT COUNT(*) FROM pools p
-             WHERE p.chain_id = $1 AND (p.token0 = t.address OR p.token1 = t.address)) AS pool_count
-         FROM swaps s
-         WHERE s.chain_id = $1 AND (s.token_in = t.address OR s.token_out = t.address)
-       ) agg ON true
-      WHERE t.discovery_failed = false
-      ORDER BY agg.vol_24h DESC NULLS LAST, agg.swap_count_24h DESC
+    `SELECT t.address, t.symbol, t.name, t.decimals, t.token_type, t.verified,
+            ts.price, ts.price_native, ts.market_cap, ts.fdv, ts.liquidity_usd,
+            ts.volume_24h, ts.volume_6h, ts.buy_count_24h, ts.sell_count_24h,
+            ts.pool_count, ts.price_confidence, ts.last_trade_at
+       FROM token_statistics ts
+       JOIN tokens t ON t.chain_id = ts.chain_id AND t.address = ts.token_address
+      WHERE ts.chain_id = $1 AND t.discovery_failed = false
+      ORDER BY ${sortCol} DESC NULLS LAST
       LIMIT $2`,
     [config.CHAIN_ID, limit]
   );
@@ -172,25 +148,17 @@ app.get<{ Querystring: { limit?: string } }>("/api/v1/tokens", async (req) => {
 app.get<{ Querystring: { limit?: string } }>("/api/v1/pairs", async (req) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const result = await query(
-    `WITH traded AS (
-       SELECT DISTINCT pool_address FROM swaps WHERE chain_id = $1
-     )
-     SELECT p.address, p.dex, p.pool_type, p.fee_tier,
+    `SELECT p.address, p.dex, p.pool_type, p.fee_tier,
             t0.address AS token0, t0.symbol AS symbol0,
             t1.address AS token1, t1.symbol AS symbol1,
-            agg.vol_24h, agg.swap_count_24h, agg.last_swap_at
-       FROM traded
-       JOIN pools p  ON p.chain_id = $1 AND p.address = traded.pool_address
+            ps.price0_usd, ps.price1_usd, ps.liquidity_usd, ps.volume_24h,
+            ps.swap_count_24h, ps.buy_count_24h, ps.sell_count_24h, ps.updated_at
+       FROM pair_statistics ps
+       JOIN pools p   ON p.chain_id = ps.chain_id AND p.address = ps.pool_address
        JOIN tokens t0 ON t0.chain_id = $1 AND t0.address = p.token0
        JOIN tokens t1 ON t1.chain_id = $1 AND t1.address = p.token1
-       JOIN LATERAL (
-         SELECT
-           COALESCE(SUM(usd_value) FILTER (WHERE timestamp > now() - interval '24 hours'), 0) AS vol_24h,
-           COUNT(*)                FILTER (WHERE timestamp > now() - interval '24 hours') AS swap_count_24h,
-           MAX(timestamp) AS last_swap_at
-         FROM swaps s WHERE s.chain_id = $1 AND s.pool_address = p.address
-       ) agg ON true
-      ORDER BY agg.vol_24h DESC NULLS LAST, agg.last_swap_at DESC NULLS LAST
+      WHERE ps.chain_id = $1
+      ORDER BY ps.volume_24h DESC NULLS LAST, ps.liquidity_usd DESC NULLS LAST
       LIMIT $2`,
     [config.CHAIN_ID, limit]
   );
@@ -200,19 +168,13 @@ app.get<{ Querystring: { limit?: string } }>("/api/v1/pairs", async (req) => {
 const PAIR_DETAIL_SQL = `
   SELECT p.*, t0.symbol AS symbol0, t0.decimals AS decimals0,
          t1.symbol AS symbol1, t1.decimals AS decimals1,
-         agg.vol_24h, agg.swap_count_24h, agg.buys_24h, agg.sells_24h, agg.last_swap_at
+         ps.price0_in_1, ps.price0_usd, ps.price1_usd, ps.reserve0, ps.reserve1,
+         ps.liquidity_usd, ps.volume_24h, ps.swap_count_24h,
+         ps.buy_count_24h AS buys_24h, ps.sell_count_24h AS sells_24h, ps.updated_at AS stats_updated_at
     FROM pools p
     JOIN tokens t0 ON t0.chain_id = p.chain_id AND t0.address = p.token0
     JOIN tokens t1 ON t1.chain_id = p.chain_id AND t1.address = p.token1
-    LEFT JOIN LATERAL (
-      SELECT
-        COALESCE(SUM(usd_value) FILTER (WHERE timestamp > now() - interval '24 hours'), 0) AS vol_24h,
-        COUNT(*)                FILTER (WHERE timestamp > now() - interval '24 hours') AS swap_count_24h,
-        COUNT(*) FILTER (WHERE timestamp > now() - interval '24 hours' AND token_in = p.token0) AS sells_24h,
-        COUNT(*) FILTER (WHERE timestamp > now() - interval '24 hours' AND token_out = p.token0) AS buys_24h,
-        MAX(timestamp) AS last_swap_at
-      FROM swaps s WHERE s.chain_id = p.chain_id AND s.pool_address = p.address
-    ) agg ON true
+    LEFT JOIN pair_statistics ps ON ps.chain_id = p.chain_id AND ps.pool_address = p.address
    WHERE p.chain_id = $1 AND p.address = $2`;
 
 app.get<{ Params: { address: string } }>("/api/v1/pairs/:address", async (req, reply) => {
@@ -290,6 +252,7 @@ app.get("/api/v1/stats", async () => {
     swaps_24h: string;
     active_wallets_24h: string;
     volume_24h: string;
+    liquidity_usd: string;
     weth_usd: string | null;
   }>(
     `SELECT
@@ -298,11 +261,9 @@ app.get("/api/v1/stats", async () => {
        (SELECT COUNT(*)                     FROM swaps WHERE chain_id = $1 AND timestamp > now() - interval '24 hours') AS swaps_24h,
        (SELECT COUNT(DISTINCT wallet_address) FROM swaps WHERE chain_id = $1 AND timestamp > now() - interval '24 hours') AS active_wallets_24h,
        (SELECT COALESCE(SUM(usd_value), 0)  FROM swaps WHERE chain_id = $1 AND timestamp > now() - interval '24 hours') AS volume_24h,
-       (SELECT price FROM swaps
-          WHERE chain_id = $1 AND price IS NOT NULL
-            AND ( (token_in = $2 AND token_out = ANY($3)) OR (token_out = $2 AND token_in = ANY($3)) )
-          ORDER BY block_number DESC, log_index DESC LIMIT 1) AS weth_usd`,
-    [config.CHAIN_ID, contracts.weth, contracts.stablecoins.length ? contracts.stablecoins : [""]]
+       (SELECT COALESCE(SUM(liquidity_usd), 0) FROM pair_statistics WHERE chain_id = $1) AS liquidity_usd,
+       (SELECT price FROM token_statistics WHERE chain_id = $1 AND token_address = $2) AS weth_usd`,
+    [config.CHAIN_ID, contracts.weth]
   );
   const r = rows[0];
   return {
@@ -311,6 +272,7 @@ app.get("/api/v1/stats", async () => {
     swaps_24h: Number(r.swaps_24h),
     active_wallets_24h: Number(r.active_wallets_24h),
     volume_24h: r.volume_24h,
+    liquidity_usd: r.liquidity_usd,
     weth_usd: r.weth_usd,
   };
 });

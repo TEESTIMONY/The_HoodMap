@@ -55,8 +55,12 @@ function human(amount: bigint, decimals: number): number {
   return Number(formatUnits(amount, decimals));
 }
 
-function guard(n: number): number | null {
-  return Number.isFinite(n) && n >= 0 && n < 1e20 ? n : null;
+/** usd_value is NUMERIC(20,6) (< 1e14); price is NUMERIC(38,18) (< 1e20). */
+function guardUsd(n: number): number | null {
+  return Number.isFinite(n) && n >= 0 && n < 1e14 ? n : null;
+}
+function guardPrice(n: number): number | null {
+  return Number.isFinite(n) && n >= 0 && n < 1e18 ? n : null;
 }
 
 /**
@@ -97,15 +101,15 @@ export async function priceSwaps(
       continue;
     }
     if (isStablecoin(s.tokenIn)) {
-      out.set(key, { usdValue: guard(humanIn), price: guard(humanIn / humanOut) });
+      out.set(key, { usdValue: guardUsd(humanIn), price: guardPrice(humanIn / humanOut) });
     } else if (isStablecoin(s.tokenOut)) {
-      out.set(key, { usdValue: guard(humanOut), price: guard(humanOut / humanIn) });
+      out.set(key, { usdValue: guardUsd(humanOut), price: guardPrice(humanOut / humanIn) });
     } else if (isWeth(s.tokenIn) && wethUsd) {
       const usd = humanIn * wethUsd;
-      out.set(key, { usdValue: guard(usd), price: guard(usd / humanOut) });
+      out.set(key, { usdValue: guardUsd(usd), price: guardPrice(usd / humanOut) });
     } else if (isWeth(s.tokenOut) && wethUsd) {
       const usd = humanOut * wethUsd;
-      out.set(key, { usdValue: guard(usd), price: guard(usd / humanIn) });
+      out.set(key, { usdValue: guardUsd(usd), price: guardPrice(usd / humanIn) });
     } else {
       out.set(key, { usdValue: null, price: null });
     }
