@@ -5,6 +5,8 @@ import { reconcileBeforeBlock } from "./reorg.js";
 import { getOrCreateIndexerState } from "../db/indexerState.js";
 import { saveBlock } from "../db/rawWrites.js";
 import { decodeBlock } from "../decode/index.js";
+import { backfillPools } from "../dex/backfillPools.js";
+import { sweepTokenMetadata } from "../decode/entities.js";
 import { pool } from "../db/pool.js";
 import { mapWithConcurrency } from "../lib/concurrency.js";
 import type { RawBlock, RawReceipt } from "./types.js";
@@ -143,6 +145,33 @@ async function processBlockWithRetry(blockNumber: bigint): Promise<bigint> {
 
 async function main(): Promise<void> {
   logger.info({ chainId: config.CHAIN_ID, chainName: config.CHAIN_NAME }, "indexer starting");
+
+  // Catch pool discovery up to the chain tip via factory events (incremental
+  // after the first run). Runs alongside the live loop rather than blocking it —
+  // the first full scan can take a while on the rate-limited backfill RPC, and
+  // lazy discovery covers anything it hasn't reached yet.
+  void backfillPools().catch((err) => {
+    logger.error(
+      { err: (err as Error).message },
+      "pool backfill failed — lazy discovery still active"
+    );
+  });
+
+  // Fill metadata for the bare token rows the backfill leaves behind.
+  let sweeping = false;
+  const metaSweep = setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    void sweepTokenMetadata(150)
+      .then((n) => {
+        if (n) logger.info({ resolved: n }, "token metadata sweep");
+      })
+      .catch((err) => logger.warn({ err: (err as Error).message }, "token metadata sweep failed"))
+      .finally(() => {
+        sweeping = false;
+      });
+  }, 20_000);
+  metaSweep.unref?.();
 
   const state = await getOrCreateIndexerState();
   let cachedTip = await httpClient.getBlockNumber();

@@ -6,6 +6,10 @@ const envSchema = z.object({
   CHAIN_NAME: z.string(),
   RPC_HTTP_URL: z.string().url(),
   RPC_WS_URL: z.string().optional().default(""),
+  // Used only for wide eth_getLogs scans (factory/pool backfill). The public
+  // Robinhood RPC allows full-range getLogs (10k-result cap) where Alchemy's
+  // free tier caps at a 10-block range. Falls back to RPC_HTTP_URL.
+  BACKFILL_RPC_URL: z.string().url().optional(),
   BLOCKSCOUT_API_URL: z.string().url().optional(),
   DATABASE_URL: z.string(),
   DATABASE_SSL: z.enum(["disable", "require", "no-verify"]).default("disable"),

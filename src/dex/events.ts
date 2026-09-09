@@ -32,6 +32,12 @@ export const V2_BURN_ABI = parseAbi([
 export const V2_BURN_TOPIC =
   "0xdccd412f0b1252819cb1fd330b93224ca42612892bb3f4f789976e6d81936496";
 
+export const V2_PAIR_CREATED_ABI = parseAbi([
+  "event PairCreated(address indexed token0, address indexed token1, address pair, uint256 allPairsLength)",
+]);
+export const V2_PAIR_CREATED_TOPIC =
+  "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9";
+
 // ---- Uniswap V3 (and forks sharing the layout) ----
 
 export const V3_SWAP_ABI = parseAbi([
@@ -39,6 +45,12 @@ export const V3_SWAP_ABI = parseAbi([
 ]);
 export const V3_SWAP_TOPIC =
   "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
+
+export const V3_POOL_CREATED_ABI = parseAbi([
+  "event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)",
+]);
+export const V3_POOL_CREATED_TOPIC =
+  "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118";
 
 export const V3_MINT_ABI = parseAbi([
   "event Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)",

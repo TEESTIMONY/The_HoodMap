@@ -50,6 +50,15 @@ const BY_CHAIN: Record<number, ChainContracts> = {
 
 export const contracts: ChainContracts = BY_CHAIN[config.CHAIN_ID] ?? BY_CHAIN[4663];
 
+/** Factories we can enumerate directly (address-filtered getLogs). Fork DEXes
+ *  whose factory we don't know are still found by live + lazy discovery. */
+export function knownFactories(): { address: `0x${string}`; version: "v2" | "v3" }[] {
+  const out: { address: `0x${string}`; version: "v2" | "v3" }[] = [];
+  if (contracts.uniswapV3Factory) out.push({ address: contracts.uniswapV3Factory, version: "v3" });
+  if (contracts.uniswapV2Factory) out.push({ address: contracts.uniswapV2Factory, version: "v2" });
+  return out;
+}
+
 export function isStablecoin(address: string): boolean {
   return contracts.stablecoins.includes(address.toLowerCase() as `0x${string}`);
 }

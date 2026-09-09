@@ -33,3 +33,19 @@ export const httpClient: PublicClient = createPublicClient({
 export const wsClient: PublicClient | null = config.RPC_WS_URL
   ? createPublicClient({ chain: robinhoodChain, transport: webSocket(config.RPC_WS_URL) })
   : null;
+
+/**
+ * Dedicated client for wide `eth_getLogs` backfill scans. Points at
+ * BACKFILL_RPC_URL (the public RPC handles full-range getLogs) and falls back to
+ * the primary HTTP endpoint. More retries, longer timeout — it's a batch path.
+ */
+export const logsClient: PublicClient = createPublicClient({
+  chain: robinhoodChain,
+  transport: http(config.BACKFILL_RPC_URL ?? config.RPC_HTTP_URL, {
+    // A couple of transport retries for the flaky public RPC (TLS resets), but
+    // the backfill loop does its own shrink-and-retry on top for range errors.
+    retryCount: 2,
+    retryDelay: 1_500,
+    timeout: 30_000,
+  }),
+});

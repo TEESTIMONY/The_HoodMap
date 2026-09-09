@@ -90,6 +90,14 @@ Production: `npm run build` then `npm run start:migrate && npm run start:api`
 - `src/decode/` — second block stage: `Transfer` → `token_transfers`,
   `Swap` → `swaps`, `Mint`/`Burn` → `liquidity_events`, wallet upserts
 - `src/analytics/price.ts` — USDG=$1 anchor + one WETH hop → `swaps.usd_value`
+- `src/dex/backfillPools.ts` — chain-wide `PairCreated`/`PoolCreated` scan (by
+  topic0, so forks are caught) → every pool, not just recently-traded ones.
+  Resumes from `backfill_state`; runs alongside the live loop on startup and as
+  `npm run backfill:pools`. Uses `BACKFILL_RPC_URL` (public RPC — Alchemy's free
+  tier caps `eth_getLogs` at 10 blocks).
+- On-demand resolution: `/api/v1/tokens/:a` and `/api/v1/pairs/:a` for an unknown
+  address do one on-chain lookup, persist, and return — so any valid token/pool
+  resolves without waiting for it to trade.
 - API: `/api/v1/tokens`, `/api/v1/pairs`, `/api/v1/pairs/:a`,
   `/api/v1/pairs/:a/swaps`, `/api/v1/swaps/recent`, `/api/v1/stats`
 - `npm run db:reset` — truncate data tables (chain switch / re-index)
@@ -110,9 +118,11 @@ Production: `npm run build` then `npm run start:migrate && npm run start:api`
   sequencer feed, not JSON-RPC. Real-time is currently poll-based
   (`INDEXER_POLL_INTERVAL_MS`). Set `RPC_WS_URL` to a provider WS (e.g. Alchemy)
   and add an `eth_subscribe` path in Phase 2.
-- Token/pool discovery is trade-driven: a token or pool only appears once it's
-  been swapped through. `swaps.price` holds the *non-quote* side's USD price, so
-  the WETH/USDG rows show each other's price — real per-token pricing is 2b.
+- Historical swap volume/charts still only exist from when the indexer first ran
+  forward — `backfillPools` finds old pools but not their past trades. A
+  historical swap backfill is a separate (bigger) job.
+- `swaps.price` holds the *non-quote* side's USD price, so the WETH/USDG rows
+  show each other's price — real per-token pricing is 2b.
 - `eth_getBlockReceipts` support on the target RPC is auto-detected at runtime;
   if absent the indexer falls back to bounded per-tx receipt calls (slower).
 
