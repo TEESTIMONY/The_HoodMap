@@ -1,6 +1,6 @@
 import type { Log } from "viem";
 import { logsClient } from "../indexer/rpcClient.js";
-import { pool, query } from "../db/pool.js";
+import { query } from "../db/pool.js";
 import { config } from "../config/index.js";
 import { logger } from "../config/logger.js";
 import { normalizeAddress } from "../lib/address.js";
@@ -105,29 +105,24 @@ function poolFromLog(log: Log & { eventName?: string; args?: Record<string, unkn
  *
  * Runs once at indexer startup and is available as `npm run backfill:pools`.
  */
-const ADVISORY_LOCK_KEY = 918_273_641; // arbitrary, stable
+const LOCK_STALE_MS = 90_000;
 
 export async function backfillPools(): Promise<{ pools: number; scannedTo: bigint }> {
   // One scanner at a time — the indexer auto-runs this and a human might also
-  // `npm run backfill:pools`. The advisory lock is session-scoped, so it must be
-  // held on a dedicated client for the whole run (pool.query() hops connections).
-  const lockClient = await pool.connect();
-  const held = await lockClient.query<{ locked: boolean }>(
-    "SELECT pg_try_advisory_lock($1) AS locked",
-    [ADVISORY_LOCK_KEY]
+  // `npm run backfill:pools`. A soft lock (rather than a session-scoped advisory
+  // lock, which the transaction pooler can't hold): a heartbeat row that the
+  // running scan bumps every page. Overlap is harmless anyway — the cursor is
+  // monotonic and every write is ON CONFLICT DO NOTHING — this just avoids the
+  // redundant RPC work.
+  const held = await query<{ updated_at: string }>(
+    `SELECT updated_at FROM backfill_state WHERE chain_id = $1 AND kind = $2`,
+    [config.CHAIN_ID, BACKFILL_KIND]
   );
-  if (!held.rows[0]?.locked) {
-    lockClient.release();
-    logger.info("pool backfill: another scan holds the lock — skipping");
+  if (held.rows[0] && Date.now() - new Date(held.rows[0].updated_at).getTime() < LOCK_STALE_MS) {
+    logger.info("pool backfill: another scan touched the cursor recently — skipping");
     return { pools: 0, scannedTo: 0n };
   }
-
-  try {
-    return await runBackfill();
-  } finally {
-    await lockClient.query("SELECT pg_advisory_unlock($1)", [ADVISORY_LOCK_KEY]).catch(() => undefined);
-    lockClient.release();
-  }
+  return runBackfill();
 }
 
 async function runBackfill(): Promise<{ pools: number; scannedTo: bigint }> {
