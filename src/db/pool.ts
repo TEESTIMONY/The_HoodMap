@@ -7,12 +7,14 @@ const { Pool } = pg;
 export const pool = new Pool({
   ...pgConnectionConfig(),
   max: config.DATABASE_POOL_MAX,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 15_000,
+  // Release pooled connections quickly — Supabase's Session pooler has a small
+  // per-project client-connection cap, so holding idle ones starves other
+  // processes (indexer + api + stats + any scripts).
+  idleTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 20_000,
   keepAlive: true,
-  // Supabase's pooler drops idle server connections; keep client statements
-  // from hanging forever if that happens mid-query.
-  statement_timeout: 60_000,
+  // Don't let a runaway query pin a scarce connection forever.
+  statement_timeout: 90_000,
 });
 
 pool.on("error", (err) => {

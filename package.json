@@ -10,6 +10,7 @@
     "migrate": "tsx src/db/migrate.ts",
     "migrate:status": "tsx src/db/migrate.ts --status",
     "db:reset": "node scripts/db-reset.mjs",
+    "db:analyze": "node scripts/db-analyze.mjs",
     "backfill:pools": "tsx src/scripts/backfillPools.ts",
     "backfill:token-meta": "tsx src/scripts/sweepTokenMeta.ts",
     "dev": "node scripts/dev.mjs",

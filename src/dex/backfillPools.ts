@@ -225,6 +225,11 @@ async function runBackfill(): Promise<{ pools: number; scannedTo: bigint }> {
     if (from <= tip) await sleep(PAGE_PAUSE_MS);
   }
 
+  if (discovered > 0) {
+    // Keep the planner honest — these tables just grew a lot, and stale stats
+    // make the API's join queries time out.
+    await query("ANALYZE pools, tokens").catch(() => undefined);
+  }
   logger.info({ pools: discovered, scannedTo: tip.toString() }, "pool backfill: done");
   return { pools: discovered, scannedTo: tip };
 }

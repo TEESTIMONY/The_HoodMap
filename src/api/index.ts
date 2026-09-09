@@ -34,7 +34,27 @@ function requirePoolRef(raw: string): string {
   throw err;
 }
 
+const DB_ERROR_CODES = new Set([
+  "57014", // statement_timeout
+  "53300", // too_many_connections
+  "08006", // connection_failure
+  "08001", // sqlclient_unable_to_establish_connection
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+]);
+
 app.setErrorHandler((err, _req, reply) => {
+  const code = (err as { code?: string }).code;
+  const msg = (err as Error).message ?? "";
+  const isDbTrouble =
+    (code && DB_ERROR_CODES.has(code)) ||
+    /statement timeout|connection terminated|Connection terminated|checkout|too many clients/i.test(msg);
+
+  if (isDbTrouble) {
+    logger.warn({ code, msg }, "database unavailable / slow");
+    return reply.status(503).send({ error: "database_unavailable", detail: "the datastore is unreachable or overloaded — retry shortly" });
+  }
+
   const status = (err as { statusCode?: number }).statusCode ?? 500;
   if (status >= 500) logger.error({ err }, "request failed");
   reply.status(status).send({ error: status >= 500 ? "internal_error" : err.message });
