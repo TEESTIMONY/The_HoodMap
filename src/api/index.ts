@@ -11,6 +11,7 @@ import { discoverTokenOnDemand, persistPool } from "../decode/entities.js";
 import { identifyPool } from "../dex/poolIdentify.js";
 import { fetchV4PoolKey } from "../dex/uniswapV4.js";
 import { computeTokenStats } from "../analytics/statistics.js";
+import { computeWalletPnl } from "../analytics/wallet.js";
 
 const app = Fastify({ logger: false });
 await app.register(cors, { origin: true });
@@ -64,19 +65,75 @@ app.get("/health", async (_req, reply) => {
   }
 });
 
-app.get<{ Params: { address: string } }>("/api/v1/wallets/:address", async (req, reply) => {
+app.get<{ Params: { address: string }; Querystring: { refresh?: string } }>(
+  "/api/v1/wallets/:address",
+  async (req) => {
+    const address = requireAddress(req.params.address);
+    const cached = await query<{ computed_at: string; indexed_through_block: string }>(
+      "SELECT * FROM wallet_statistics WHERE chain_id = $1 AND wallet_address = $2",
+      [config.CHAIN_ID, address]
+    );
+    const row = cached.rows[0];
+    const state = await getOrCreateIndexerState();
+    const ageMs = row?.computed_at ? Date.now() - new Date(row.computed_at).getTime() : Infinity;
+    const behind =
+      row && state.lastProcessedBlock - BigInt(row.indexed_through_block ?? 0) > 50n;
+
+    // Recompute on demand: never computed, stale (>2min), the chain has moved
+    // meaningfully since, or ?refresh=1. Bounded by the wallet's swap count.
+    if (!row || ageMs > 120_000 || behind || req.query.refresh === "1") {
+      const summary = await computeWalletPnl(address);
+      if (summary.total_trades === 0) {
+        return { has_trades: false, ...summary };
+      }
+      const fresh = await query(
+        "SELECT * FROM wallet_statistics WHERE chain_id = $1 AND wallet_address = $2",
+        [config.CHAIN_ID, address]
+      );
+      return { has_trades: true, ...fresh.rows[0] };
+    }
+    return { has_trades: (row as { total_trades?: number }).total_trades !== 0, ...row };
+  }
+);
+
+app.get<{ Params: { address: string } }>("/api/v1/wallets/:address/positions", async (req) => {
   const address = requireAddress(req.params.address);
   const result = await query(
-    "SELECT * FROM wallet_statistics WHERE chain_id = $1 AND wallet_address = $2",
+    `SELECT p.token_address, p.quantity, p.average_cost, p.cost_basis, p.realized_pnl,
+            p.unrealized_pnl, p.current_price, p.current_value, p.is_open,
+            p.buy_usd, p.sell_usd, p.first_buy_at, p.last_activity_at,
+            t.symbol, t.name, t.decimals, ts.price AS market_price
+       FROM positions p
+       JOIN tokens t ON t.chain_id = p.chain_id AND t.address = p.token_address
+       LEFT JOIN token_statistics ts ON ts.chain_id = p.chain_id AND ts.token_address = p.token_address
+      WHERE p.chain_id = $1 AND p.wallet_address = $2
+      ORDER BY p.is_open DESC, ABS(COALESCE(p.current_value, 0)) DESC, ABS(p.realized_pnl) DESC`,
     [config.CHAIN_ID, address]
   );
-  if (!result.rows[0]) {
-    // Not "wallet doesn't exist" — just that the analytics worker (Phase 3)
-    // hasn't produced a summary for it yet.
-    return reply.status(404).send({ error: "not_indexed_yet" });
-  }
-  return result.rows[0];
+  return { wallet: address, count: result.rows.length, positions: result.rows };
 });
+
+app.get<{ Params: { address: string }; Querystring: { limit?: string; before?: string } }>(
+  "/api/v1/wallets/:address/trades",
+  async (req) => {
+    const address = requireAddress(req.params.address);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const before = req.query.before ?? null;
+    const result = await query(
+      `SELECT tr.token_address, tr.side, tr.quantity, tr.price, tr.usd_value,
+              tr.cost_basis, tr.realized_pnl, tr.dex, tr.tx_hash, tr.timestamp,
+              t.symbol, t.decimals
+         FROM trades tr
+         JOIN tokens t ON t.chain_id = tr.chain_id AND t.address = tr.token_address
+        WHERE tr.chain_id = $1 AND tr.wallet_address = $2
+          AND ($3::timestamptz IS NULL OR tr.timestamp < $3::timestamptz)
+        ORDER BY tr.timestamp DESC
+        LIMIT $4`,
+      [config.CHAIN_ID, address, before, limit]
+    );
+    return { wallet: address, count: result.rows.length, trades: result.rows };
+  }
+);
 
 app.get<{ Params: { address: string }; Querystring: { limit?: string; before?: string } }>(
   "/api/v1/wallets/:address/transactions",

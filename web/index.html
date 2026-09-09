@@ -103,13 +103,15 @@
   </section>
 
   <section class="panel">
-    <h2>Wallet</h2>
+    <h2>Wallet — PnL & trades</h2>
     <div class="body">
       <div class="row">
         <input id="walletInput" placeholder="0x wallet address" spellcheck="false" />
-        <button id="walletBtn">Look up</button>
+        <button id="walletBtn">Analyse</button>
       </div>
       <div id="walletSummary"></div>
+      <div id="walletPositions"></div>
+      <div id="walletTradesWrap"></div>
       <div id="walletTxWrap"></div>
     </div>
   </section>
@@ -311,32 +313,106 @@ async function loadSwaps() {
 
 /* ---- wallet ---- */
 let walletTxs = [], walletAddr = null;
+
+function pnlCell(v) {
+  if (v == null) return "—";
+  const n = Number(v);
+  const c = n > 0 ? "var(--green)" : n < 0 ? "var(--red)" : "var(--muted)";
+  return `<span style="color:${c}">${n >= 0 ? "+" : "−"}${usd(Math.abs(n)).replace("$", "$")}</span>`;
+}
+
 async function lookupWallet() {
   const addr = $("walletInput").value.trim().toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(addr)) {
     $("walletSummary").innerHTML = `<div class="err">Not a valid 0x address.</div>`;
-    $("walletTxWrap").innerHTML = ""; return;
+    $("walletPositions").innerHTML = $("walletTradesWrap").innerHTML = $("walletTxWrap").innerHTML = ""; return;
   }
   walletAddr = addr; walletTxs = [];
   $("walletBtn").disabled = true;
-  $("walletSummary").innerHTML = `<div class="note">loading…</div>`;
-  $("walletTxWrap").innerHTML = "";
-  const summary = await api(`/api/v1/wallets/${addr}`);
-  if (summary.ok) {
-    const r = summary.json;
-    $("walletSummary").innerHTML = `<dl class="kv">
-      <dt>realized pnl</dt><dd>${esc(r.realized_pnl ?? "—")}</dd>
-      <dt>unrealized pnl</dt><dd>${esc(r.unrealized_pnl ?? "—")}</dd>
-      <dt>trades</dt><dd>${esc(r.total_trades ?? "—")}</dd>
-      <dt>win rate</dt><dd>${esc(r.win_rate ?? "—")}</dd>
-    </dl>`;
-  } else if (summary.status === 404) {
-    $("walletSummary").innerHTML = `<div class="note">No analytics summary yet — <code>${esc(summary.json?.error)}</code>. Wallet PnL is Phase 3; raw transactions below still work.</div>`;
-  } else {
+  $("walletSummary").innerHTML = `<div class="note">analysing — reconstructing trades and running the PnL engine…</div>`;
+  $("walletPositions").innerHTML = $("walletTradesWrap").innerHTML = $("walletTxWrap").innerHTML = "";
+
+  const [summary, positions, trades] = await Promise.all([
+    api(`/api/v1/wallets/${addr}`),
+    api(`/api/v1/wallets/${addr}/positions`),
+    api(`/api/v1/wallets/${addr}/trades?limit=50`),
+  ]);
+
+  if (!summary.ok) {
     $("walletSummary").innerHTML = `<div class="err">${esc(summary.json?.error || summary.status)}</div>`;
+    $("walletBtn").disabled = false; return;
   }
+  const r = summary.json;
+  if (r.has_trades === false || !r.total_trades) {
+    $("walletSummary").innerHTML = `<div class="note">No DEX trades indexed for this wallet yet. Raw transfers below.</div>`;
+  } else {
+    const conf = r.pnl_confidence || "medium";
+    const confColor = conf === "high" ? "var(--green)" : conf === "medium" ? "var(--amber)" : "var(--red)";
+    const unmatched = Number(r.unmatched_pnl || 0);
+    const warn = Math.abs(unmatched) > 1 && Math.abs(unmatched) > 0.1 * Math.abs(Number(r.total_pnl) || 1)
+      ? `<div class="note" style="color:var(--amber);margin-top:8px">⚠ ${usd(Math.abs(unmatched))} of this PnL is from ${esc(r.zero_cost_positions)} position(s) with no recorded purchase — a buy before our indexed history, or an airdrop. Not verified.</div>`
+      : "";
+    $("walletSummary").innerHTML = `
+      <div class="stats">
+        <div class="stat"><b>${usd(r.portfolio_value)}</b><span>portfolio value</span></div>
+        <div class="stat"><b>${pnlCell(r.total_pnl)}</b><span>total pnl</span></div>
+        <div class="stat"><b>${pnlCell(r.realized_pnl)}</b><span>realized</span></div>
+        <div class="stat"><b>${pnlCell(r.unrealized_pnl)}</b><span>unrealized</span></div>
+        <div class="stat"><b>${r.win_rate == null ? "—" : (Number(r.win_rate) * 100).toFixed(0) + "%"}</b><span>win rate</span></div>
+        <div class="stat"><b>${esc(r.total_trades)}</b><span>trades</span></div>
+        <div class="stat"><b style="color:${confColor}">${esc(conf)}</b><span>confidence</span></div>
+      </div>
+      <dl class="kv" style="margin-top:12px">
+        <dt>wins / losses</dt><dd>${esc(r.winning_trades)} / ${esc(r.losing_trades)}${r.breakeven_trades ? ` · ${esc(r.breakeven_trades)} breakeven` : ""}</dd>
+        <dt>avg win / loss</dt><dd>${pnlCell(r.average_win)} / ${pnlCell(r.average_loss)}</dd>
+        <dt>best / worst trade</dt><dd>${pnlCell(r.best_trade_pnl)} / ${pnlCell(r.worst_trade_pnl)}</dd>
+        <dt>volume (buy / sell)</dt><dd>${usd(r.total_volume)} (${usd(r.buy_volume)} / ${usd(r.sell_volume)})</dd>
+        <dt>tokens traded</dt><dd>${esc(r.tokens_traded)} · ${esc(r.open_positions)} open / ${esc(r.closed_positions)} closed</dd>
+        <dt>roi</dt><dd>${r.roi == null ? "—" : (Number(r.roi) * 100).toFixed(1) + "%"}</dd>
+        <dt>active</dt><dd>${ts(r.first_trade_at)} → ${ts(r.last_trade_at)}</dd>
+      </dl>${warn}`;
+  }
+
+  renderPositions(positions.json?.positions || []);
+  renderTrades(trades.json?.trades || []);
   await loadMoreTxs();
   $("walletBtn").disabled = false;
+}
+
+function renderPositions(rows) {
+  if (!rows.length) { $("walletPositions").innerHTML = ""; return; }
+  const body = rows.map((p) => {
+    const noCost = !p.has_cost_basis && Number(p.cost_basis) < 0.01 && p.is_open;
+    return `<tr>
+      <td>${esc(p.symbol || "?")} ${p.is_open ? "" : '<span class="tag mut">closed</span>'}</td>
+      <td class="num">${amt(BigInt(Math.trunc(Number(p.quantity) * 1e6)).toString(), 6)}</td>
+      <td class="num">${p.average_cost && Number(p.average_cost) > 0 ? price(p.average_cost) : (noCost ? '<span class="mut">unknown</span>' : "—")}</td>
+      <td class="num">${price(p.current_price)}</td>
+      <td class="num">${usd(p.current_value)}</td>
+      <td class="num">${pnlCell(p.realized_pnl)}</td>
+      <td class="num">${noCost ? '<span class="mut" title="no recorded purchase">~' + pnlCell(p.unrealized_pnl).replace(/<[^>]+>/g,'') + '</span>' : pnlCell(p.unrealized_pnl)}</td>
+    </tr>`;
+  }).join("");
+  $("walletPositions").innerHTML = `<div class="scroll"><table>
+    <thead><tr><th>token</th><th class="num">qty</th><th class="num">avg cost</th><th class="num">price</th><th class="num">value</th><th class="num">realized</th><th class="num">unrealized</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+
+function renderTrades(rows) {
+  if (!rows.length) { $("walletTradesWrap").innerHTML = ""; return; }
+  const body = rows.map((t) => `<tr>
+    <td class="mut">${ts(t.timestamp)}</td>
+    <td><span class="tag ${t.side === "buy" ? "buy" : "sell"}">${t.side.toUpperCase()}</span></td>
+    <td>${esc(t.symbol || "?")}</td>
+    <td class="mut">${esc(t.dex)}</td>
+    <td class="num">${usd(t.usd_value)}</td>
+    <td class="num">${t.side === "sell" ? pnlCell(t.realized_pnl) : "—"}</td>
+    <td>${txLink(t.tx_hash)}</td>
+  </tr>`).join("");
+  $("walletTradesWrap").innerHTML = `<div class="note" style="margin-top:14px">Reconstructed trades</div>
+    <div class="scroll"><table>
+    <thead><tr><th>time</th><th>side</th><th>token</th><th>dex</th><th class="num">USD</th><th class="num">realized</th><th>tx</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
 }
 async function loadMoreTxs() {
   const before = walletTxs.length ? walletTxs[walletTxs.length - 1].block_number : "";
