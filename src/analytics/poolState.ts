@@ -103,17 +103,39 @@ export function valuePools(
     };
   };
 
+  // Sanity bounds: no real pool holds $500B TVL; no real token is worth $100M
+  // a unit. A near-empty pool against a valued asset produces exactly this kind
+  // of garbage, so reject the whole valuation rather than emit a fake price.
+  const MAX_POOL_TVL = 5e11;
+  const MAX_UNIT_PRICE = 1e8;
+  const MIN_POOL_TVL = 1; // ignore dust pools entirely
+
   const finalize = (v: PoolValuation): void => {
-    // Fill the unknown side from the known one; compute TVL + prices.
     if (v.side0Usd != null && v.side1Usd == null) v.side1Usd = v.side0Usd;
     if (v.side1Usd != null && v.side0Usd == null) v.side0Usd = v.side1Usd;
-    if (v.side0Usd != null && v.side1Usd != null) {
-      v.liquidityUsd = v.side0Usd + v.side1Usd;
-      v.price0Usd = v.amount0 > 0 ? v.side0Usd / v.amount0 : null;
-      v.price1Usd = v.amount1 > 0 ? v.side1Usd / v.amount1 : null;
-      if (v.price0Usd && v.price0Usd > 0) knownPrices.set(v.pool.token0, v.price0Usd);
-      if (v.price1Usd && v.price1Usd > 0) knownPrices.set(v.pool.token1, v.price1Usd);
+    if (v.side0Usd == null || v.side1Usd == null) return;
+
+    const tvl = v.side0Usd + v.side1Usd;
+    const p0 = v.amount0 > 0 ? v.side0Usd / v.amount0 : null;
+    const p1 = v.amount1 > 0 ? v.side1Usd / v.amount1 : null;
+
+    const sane =
+      Number.isFinite(tvl) &&
+      tvl >= MIN_POOL_TVL &&
+      tvl <= MAX_POOL_TVL &&
+      (p0 == null || (Number.isFinite(p0) && p0 > 0 && p0 <= MAX_UNIT_PRICE)) &&
+      (p1 == null || (Number.isFinite(p1) && p1 > 0 && p1 <= MAX_UNIT_PRICE));
+    if (!sane) {
+      v.side0Usd = null;
+      v.side1Usd = null;
+      return;
     }
+
+    v.liquidityUsd = tvl;
+    v.price0Usd = p0;
+    v.price1Usd = p1;
+    if (p0 && p0 > 0) knownPrices.set(v.pool.token0, p0);
+    if (p1 && p1 > 0) knownPrices.set(v.pool.token1, p1);
   };
 
   const valueSide = (token: string, amount: number): number | null => {

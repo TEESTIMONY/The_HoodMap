@@ -9,6 +9,7 @@ import { isAddress, normalizeAddress } from "../lib/address.js";
 import { contracts } from "../dex/contracts.js";
 import { discoverTokenOnDemand, persistPool } from "../decode/entities.js";
 import { identifyPool } from "../dex/poolIdentify.js";
+import { computeTokenStats } from "../analytics/statistics.js";
 
 const app = Fastify({ logger: false });
 await app.register(cors, { origin: true });
@@ -110,11 +111,21 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address", async (req, 
   let result = await query(TOKEN_DETAIL_SQL, [config.CHAIN_ID, address]);
 
   if (!result.rows[0]) {
-    // Never seen it — try to resolve it straight from the chain (one RPC call).
+    // Never seen it — resolve identity straight from the chain (one RPC call).
     const discovered = await discoverTokenOnDemand(address).catch(() => null);
     if (!discovered) return reply.status(404).send({ error: "not_an_erc20_or_unreachable" });
     result = await query(TOKEN_DETAIL_SQL, [config.CHAIN_ID, address]);
     if (!result.rows[0]) return reply.status(404).send({ error: "token_not_found" });
+  }
+
+  const row = result.rows[0] as { price: string | null; stats_updated_at: string | null };
+  // Bounded RPC on the request path *only* when there's nothing useful to show:
+  // no price yet, or stats gone stale (worker covers traded tokens every 45s, so
+  // this mostly fires for tokens with liquidity that haven't traded recently).
+  const ageMs = row.stats_updated_at ? Date.now() - new Date(row.stats_updated_at).getTime() : Infinity;
+  if (row.price == null || ageMs > 600_000) {
+    const computed = await computeTokenStats(address).catch(() => false);
+    if (computed) result = await query(TOKEN_DETAIL_SQL, [config.CHAIN_ID, address]);
   }
   return result.rows[0];
 });
