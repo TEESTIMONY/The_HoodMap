@@ -1,9 +1,5 @@
 import Link from "next/link";
 import {
-  Radar,
-  Waypoints,
-  Wallet,
-  Flame,
   ShieldCheck,
   Network,
   History,
@@ -25,7 +21,7 @@ import { SiteNav } from "@/components/site/site-nav";
 import { CookieBar } from "@/components/site/cookie-bar";
 import { HeroDecor } from "@/components/site/hero-decor";
 import { ScanInput } from "@/components/site/scan-input";
-import { ProductCard } from "@/components/site/product-card";
+import { ProductShowcase } from "@/components/site/product-showcase";
 
 const HERO_CHIPS = [
   { icon: FlaskConical, label: "On-chain, not scraped" },
@@ -41,43 +37,12 @@ const SOCIALS = [
   { icon: Github, href: "https://github.com", label: "GitHub" },
 ];
 
-const PRODUCTS = [
-  {
-    icon: Radar,
-    name: "Scan",
-    status: "live" as const,
-    blurb:
-      "Paste a token contract. Holder distribution, connected-wallet clusters, a HoodScore safety grade with reasons, whale table, and a live transaction feed.",
-  },
-  {
-    icon: Waypoints,
-    name: "HoodMap view",
-    status: "live" as const,
-    blurb:
-      "The signature view: a force-directed bubble map of holders — sized by share of supply, coloured by cluster, with funder→funded arrows showing how a cluster was seeded.",
-  },
-  {
-    icon: Wallet,
-    name: "Wallet Passport",
-    status: "live" as const,
-    blurb:
-      "Paste any wallet. Reconstructed trade history, win rate, realized P&L, open and closed positions — across every token it has touched, not just one.",
-  },
-  {
-    icon: Flame,
-    name: "Top Memecoins",
-    status: "live" as const,
-    blurb:
-      "Trending tokens on Robinhood Chain — a starting point for discovery when you don't have an address in hand yet.",
-  },
-];
-
 const READS = [
   { icon: Network, title: "Who's connected", body: "Wallet clusters and the addresses that funded them." },
   {
     icon: ShieldCheck,
     title: "Whether it's safe",
-    body: "An A–F grade from concentration, funding, and LP state — with the reasons shown.",
+    body: "An A-to-F grade from concentration, funding, and LP state, with the reasons shown.",
   },
   { icon: History, title: "What a wallet has done", body: "Full reconstructed trade history and P&L, every token." },
 ];
@@ -199,25 +164,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= Products ================= */}
-      <section className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
-        <div className="mb-10">
-          <p className="font-mono text-[14px] uppercase tracking-[0.2em] text-ink-faint">
-            The product
-          </p>
-          <h2 className="mt-3 max-w-4xl font-display text-[2.5rem] font-bold uppercase leading-[1.05] text-ink sm:text-6xl">
-            DexScreener, Bubblemaps, and a P&amp;L tracker — one terminal, one chain.
-          </h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {PRODUCTS.map((p) => (
-            <ProductCard key={p.name} {...p} />
-          ))}
-        </div>
-        <p className="mt-6 font-mono text-[14px] text-ink-faint">
-          In progress: Constellation (social graph) · Notifications · Profiles
-        </p>
-      </section>
+      {/* ================= Product showcase ================= */}
+      <ProductShowcase />
 
       {/* ================= Evidence / voice ================= */}
       <section className="mx-auto max-w-6xl px-5 pb-28 sm:px-8">

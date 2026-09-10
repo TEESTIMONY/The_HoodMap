@@ -56,9 +56,24 @@ const config: Config = {
           from: { opacity: "0", transform: "translateY(12px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        marquee: {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-50%)" },
+        },
+        "marquee-reverse": {
+          from: { transform: "translateX(-50%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "spin-slow": {
+          from: { transform: "rotate(0deg)" },
+          to: { transform: "rotate(360deg)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.7s cubic-bezier(0.16,1,0.3,1) both",
+        marquee: "marquee 46s linear infinite",
+        "marquee-reverse": "marquee-reverse 52s linear infinite",
+        "spin-slow": "spin-slow 40s linear infinite",
       },
     },
   },

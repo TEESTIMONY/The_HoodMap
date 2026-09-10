@@ -101,7 +101,7 @@ function Footerdemo() {
           <div className="relative">
             <h2 className="font-display text-2xl font-bold text-ink">Signal in your inbox</h2>
             <p className="mt-3 text-[14px] leading-relaxed text-ink-muted">
-              New clusters, HoodScore changes, and whales on the move — no noise.
+              New clusters, HoodScore changes, and whales on the move. No noise.
             </p>
             <form onSubmit={subscribe} className="relative mt-5">
               <input

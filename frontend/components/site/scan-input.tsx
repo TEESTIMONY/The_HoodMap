@@ -60,7 +60,7 @@ export function ScanInput({ className }: { className?: string }) {
           error ? "text-danger" : "text-ink-faint"
         )}
       >
-        {error ?? "Raw on-chain history — no login."}
+        {error ?? "Raw on-chain history, no login."}
       </p>
     </div>
   );
