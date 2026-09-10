@@ -19,7 +19,8 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { GatewayFlow } from "@/components/ui/gateway-flow";
-import { HoodMark, HoodWordmark } from "@/components/site/logo";
+import { Footerdemo } from "@/components/ui/footer-section";
+import { HoodMark } from "@/components/site/logo";
 import { SiteNav } from "@/components/site/site-nav";
 import { CookieBar } from "@/components/site/cookie-bar";
 import { HeroDecor } from "@/components/site/hero-decor";
@@ -38,13 +39,6 @@ const SOCIALS = [
   { icon: Send, href: "https://t.me", label: "Telegram" },
   { icon: MessageCircle, href: "https://discord.com", label: "Discord" },
   { icon: Github, href: "https://github.com", label: "GitHub" },
-];
-
-const NAV = [
-  { label: "Scan", href: "/scan" },
-  { label: "Map", href: "/map" },
-  { label: "Passport", href: "/wallet" },
-  { label: "Trending", href: "/trending" },
 ];
 
 const PRODUCTS = [
@@ -244,26 +238,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================= Footer ================= */}
-      <footer className="border-t border-line">
-        <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <HoodWordmark />
-            <div className="flex flex-wrap gap-6 font-mono text-[15px] text-ink-muted">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="transition-colors hover:text-ink">
-                  {n.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <p className="mt-8 max-w-2xl text-[13px] leading-relaxed text-ink-faint">
-            HoodMap is an independent analytics tool. Not affiliated with, endorsed by, or connected
-            to Robinhood Markets, Inc. Wallet metrics are derived from on-chain activity and may be
-            incomplete where transaction intent or history outside the scan window can&apos;t be
-            determined. Not financial advice.
-          </p>
-        </div>
-      </footer>
+      <Footerdemo />
 
       <CookieBar />
     </main>
