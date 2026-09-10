@@ -73,7 +73,7 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
   // Auto-advance, unless the reader is hovering / focused in, or reduced motion.
   useEffect(() => {
     if (reduce || paused) return;
-    const id = window.setInterval(() => setActiveIndex((v) => v + 1), 4200);
+    const id = window.setInterval(() => setActiveIndex((v) => v + 1), 3000);
     return () => window.clearInterval(id);
   }, [reduce, paused]);
 
@@ -108,7 +108,7 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
   const trackTransition =
     resetting || reduce
       ? { duration: 0 }
-      : { type: "spring" as const, stiffness: 260, damping: 30, mass: 1 };
+      : { type: "spring" as const, stiffness: 340, damping: 32, mass: 1 };
   const scaleTransition =
     resetting || reduce
       ? { duration: 0 }
