@@ -117,23 +117,23 @@ export default function LandingPage() {
 
         {/* content */}
         <div className="relative z-30 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-5 pb-16 pt-28 text-center">
-          {/* eyebrow */}
-          <div className="inline-flex items-center gap-2 font-mono text-[12px] text-ink-faint">
-            <span className="size-1.5 rounded-full bg-lime" />
-            Intelligence layer of Robinhood Chain
-          </div>
-
           {/* moved-down block */}
           <div className="my-auto flex w-full flex-col items-center">
+            {/* eyebrow — directly above the headline */}
+            <div className="mb-4 inline-flex items-center gap-2 font-mono text-[12px] text-ink-faint sm:mb-6">
+              <span className="size-1.5 rounded-full bg-lime" />
+              Intelligence layer of Robinhood Chain
+            </div>
+
             {/* headline */}
-            <h1 className="mx-auto max-w-[12ch] font-display text-[12vw] font-bold uppercase leading-[0.98] tracking-[-0.01em] text-ink [text-shadow:0_0_44px_rgba(23,176,74,0.35)] sm:max-w-none sm:text-5xl md:text-6xl lg:text-[4.25rem]">
+            <h1 className="mx-auto max-w-[12ch] font-display text-[11vw] font-bold uppercase leading-[0.98] tracking-[-0.01em] text-ink [text-shadow:0_0_44px_rgba(23,176,74,0.35)] sm:max-w-none sm:text-5xl md:text-6xl lg:text-[4.25rem]">
               HoodMap
               <br />
               <span className="text-lime">Wallet Intelligence</span>
             </h1>
 
             {/* feature chips */}
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[11px] text-ink-muted">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[11px] text-ink-muted sm:mt-7">
               {HERO_CHIPS.map((c) => (
                 <span key={c.label} className="inline-flex items-center gap-1.5">
                   <c.icon className="size-3.5 text-lime" />
@@ -143,7 +143,7 @@ export default function LandingPage() {
             </div>
 
             {/* CTAs */}
-            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 sm:mt-9">
               <Link
                 href="/scan"
                 className="group inline-flex items-center gap-2.5 rounded-full bg-ink py-2 pl-6 pr-2 font-mono text-[14px] font-semibold text-canvas transition-colors hover:bg-white"
@@ -162,7 +162,7 @@ export default function LandingPage() {
             </div>
 
             {/* scan bar — directly below the CTAs */}
-            <ScanInput className="mt-6 max-w-xl" />
+            <ScanInput className="mt-5 max-w-2xl sm:mt-7" />
           </div>
         </div>
 
