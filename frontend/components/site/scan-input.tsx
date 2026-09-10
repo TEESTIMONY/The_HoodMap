@@ -56,7 +56,7 @@ export function ScanInput({ className }: { className?: string }) {
       </form>
       <p
         className={cn(
-          "mt-3 min-h-[1rem] px-4 text-[12px] leading-relaxed",
+          "mt-3 min-h-[1rem] px-4 text-[13px] leading-relaxed",
           error ? "text-danger" : "text-ink-faint"
         )}
       >

@@ -96,7 +96,7 @@ export default function LandingPage() {
       {/* ================= Hero ================= */}
       <section className="relative flex min-h-[100svh] flex-col overflow-hidden">
         {/* converging flow */}
-        <GatewayFlow className="absolute inset-0" convergeY={0.74} density={0.85} opacity={0.8} />
+        <GatewayFlow className="absolute inset-0" convergeY={0.8} density={0.85} opacity={0.8} />
         <HeroDecor />
 
         {/* washes for legibility */}
@@ -108,7 +108,7 @@ export default function LandingPage() {
         <div className="pointer-events-none absolute left-1/2 top-[46%] h-[380px] w-[min(760px,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-moss/15 blur-[130px]" />
 
         {/* logo at the convergence of the flow lines */}
-        <div className="pointer-events-none absolute left-1/2 top-[78%] z-10 -translate-x-1/2 -translate-y-1/2 sm:top-[74%]">
+        <div className="pointer-events-none absolute left-1/2 top-[84%] z-10 -translate-x-1/2 -translate-y-1/2 sm:top-[80%]">
           <div className="relative">
             <div className="absolute inset-0 -z-10 rounded-full bg-lime/20 blur-2xl" />
             <HoodMark className="size-14 drop-shadow-[0_0_16px_rgba(214,250,77,0.6)]" />
@@ -120,23 +120,23 @@ export default function LandingPage() {
           {/* moved-down block */}
           <div className="my-auto flex w-full flex-col items-center">
             {/* eyebrow — directly above the headline */}
-            <div className="mb-4 inline-flex items-center gap-2 font-mono text-[12px] text-ink-faint sm:mb-6">
+            <div className="mb-4 inline-flex items-center gap-2 font-mono text-[13px] text-ink-faint sm:mb-6 sm:text-sm">
               <span className="size-1.5 rounded-full bg-lime" />
               Intelligence layer of Robinhood Chain
             </div>
 
             {/* headline */}
-            <h1 className="mx-auto max-w-[12ch] font-display text-[11vw] font-bold uppercase leading-[0.98] tracking-[-0.01em] text-ink [text-shadow:0_0_44px_rgba(23,176,74,0.35)] sm:max-w-none sm:text-5xl md:text-6xl lg:text-[4.25rem]">
+            <h1 className="mx-auto max-w-[12ch] font-display text-[12vw] font-bold uppercase leading-[0.98] tracking-[-0.01em] text-ink [text-shadow:0_0_44px_rgba(23,176,74,0.35)] sm:max-w-none sm:text-6xl md:text-7xl lg:text-[4.75rem]">
               HoodMap
               <br />
               <span className="text-lime">Wallet Intelligence</span>
             </h1>
 
             {/* feature chips */}
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[11px] text-ink-muted sm:mt-7">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[12px] text-ink-muted sm:mt-7 sm:text-[13px]">
               {HERO_CHIPS.map((c) => (
                 <span key={c.label} className="inline-flex items-center gap-1.5">
-                  <c.icon className="size-3.5 text-lime" />
+                  <c.icon className="size-4 text-lime" />
                   {c.label}
                 </span>
               ))}
@@ -168,9 +168,9 @@ export default function LandingPage() {
 
         {/* bottom rail */}
         <div className="relative z-30 mx-auto flex w-full max-w-[1600px] items-end justify-between gap-4 px-5 pb-8 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3 font-mono text-[12px] text-ink-faint">
+          <div className="flex items-center gap-3.5 font-mono text-[13px] text-ink-faint">
             <span className="hidden sm:inline">Follow us</span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3.5">
               {SOCIALS.map((s) => (
                 <a
                   key={s.label}
@@ -180,14 +180,14 @@ export default function LandingPage() {
                   aria-label={s.label}
                   className="text-ink-muted transition-colors hover:text-lime"
                 >
-                  <s.icon className="size-4" />
+                  <s.icon className="size-[18px]" />
                 </a>
               ))}
             </div>
           </div>
-          <div className="hidden items-center gap-2 font-mono text-[12px] text-ink-faint sm:flex">
+          <div className="hidden items-center gap-2 font-mono text-[13px] text-ink-faint sm:flex">
             Scroll to explore
-            <ArrowDown className="size-3.5 animate-bounce" />
+            <ArrowDown className="size-4 animate-bounce" />
           </div>
         </div>
       </section>
