@@ -14,7 +14,7 @@ export function DexChart({ pools }: { pools: ReportPool[] }) {
 
   if (!pool) {
     return (
-      <div className="grid h-[420px] place-items-center rounded-2xl border border-line bg-surface/40 text-[13px] text-ink-muted">
+      <div className="grid h-[280px] place-items-center rounded-2xl border border-line bg-surface/40 text-[13px] text-ink-muted">
         No indexed pool to chart.
       </div>
     );
@@ -37,7 +37,7 @@ export function DexChart({ pools }: { pools: ReportPool[] }) {
         title="Price chart"
         onLoad={() => setLoaded(true)}
         loading="lazy"
-        className="h-[440px] w-full border-0 sm:h-[560px] xl:h-[640px]"
+        className="h-[300px] w-full border-0 sm:h-[360px]"
       />
     </div>
   );

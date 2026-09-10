@@ -6,7 +6,6 @@ import Link from "next/link";
 import { ArrowUpRight, Maximize2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
-import { Footerdemo } from "@/components/ui/footer-section";
 import { ScanInput } from "@/components/site/scan-input";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DexChart } from "@/components/scan/dex-chart";
@@ -249,8 +248,6 @@ export default function TokenScanPage() {
           <TxFeed swaps={swaps} decimals={t?.decimals ?? null} loading={swapsLoading} expanded />
         </Modal>
       )}
-
-      <Footerdemo />
     </main>
   );
 }
