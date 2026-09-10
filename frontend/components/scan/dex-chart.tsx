@@ -37,7 +37,7 @@ export function DexChart({ pools }: { pools: ReportPool[] }) {
         title="Price chart"
         onLoad={() => setLoaded(true)}
         loading="lazy"
-        className="h-[300px] w-full border-0 sm:h-[340px] lg:h-[clamp(220px,38vh,360px)]"
+        className="h-[320px] w-full border-0 sm:h-[380px] lg:h-[clamp(260px,44vh,420px)]"
       />
     </div>
   );
