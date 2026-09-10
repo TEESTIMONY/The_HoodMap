@@ -17,7 +17,7 @@ export function TxFeed({
 }) {
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[520px]">
+      <div className="min-w-[520px] max-w-[920px]">
         <div
           className={cn(
             "grid border-b border-line-strong px-1 py-2.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint",

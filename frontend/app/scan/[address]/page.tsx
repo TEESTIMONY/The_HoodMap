@@ -115,8 +115,8 @@ export default function TokenScanPage() {
     <main className="relative min-h-[100svh] bg-canvas">
       <SiteNav />
 
-      <div className="mx-auto max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-32">
-        <ScanInput className="max-w-2xl" />
+      <div className="mx-auto w-full max-w-[1760px] px-4 pb-24 pt-28 sm:px-6 sm:pt-32 lg:px-10">
+        <ScanInput className="max-w-none" />
 
         {state === "invalid" && (
           <p className="mt-8 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 font-mono text-[13px] text-danger">
@@ -148,9 +148,13 @@ export default function TokenScanPage() {
               </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="font-display text-2xl font-bold uppercase text-ink sm:text-3xl">
-                    {state === "loading" ? "Loading…" : sym}
-                  </h1>
+                  {state === "loading" ? (
+                    <span className="my-1 block h-6 w-28 animate-pulse rounded bg-surface-3" />
+                  ) : (
+                    <h1 className="font-display text-2xl font-bold uppercase text-ink sm:text-3xl">
+                      {sym}
+                    </h1>
+                  )}
                   {t?.name && (
                     <span className="truncate font-mono text-[13px] text-ink-faint">({t.name})</span>
                   )}
@@ -178,8 +182,8 @@ export default function TokenScanPage() {
               </a>
             </div>
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-              <div className="flex flex-col gap-5">
+            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+              <div className="order-2 flex min-w-0 flex-col gap-5 lg:order-1">
                 <DexChart pools={report?.pools ?? []} />
 
                 <div className="rounded-2xl border border-line bg-surface/40">
@@ -210,7 +214,7 @@ export default function TokenScanPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-5">
+              <div className="order-1 flex flex-col gap-5 lg:order-2">
                 {t ? (
                   <MarketStats t={t} />
                 ) : (
