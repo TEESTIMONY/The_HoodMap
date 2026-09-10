@@ -1,8 +1,6 @@
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
-  ShieldCheck,
-  Network,
-  History,
   ArrowRight,
   ArrowDown,
   FlaskConical,
@@ -16,6 +14,7 @@ import {
 } from "lucide-react";
 import { GatewayFlow } from "@/components/ui/gateway-flow";
 import { Footerdemo } from "@/components/ui/footer-section";
+import type { CarouselItem } from "@/components/ui/ruler-carousel";
 import { HoodMark } from "@/components/site/logo";
 import { SiteNav } from "@/components/site/site-nav";
 import { CookieBar } from "@/components/site/cookie-bar";
@@ -37,14 +36,45 @@ const SOCIALS = [
   { icon: Github, href: "https://github.com", label: "GitHub" },
 ];
 
-const READS = [
-  { icon: Network, title: "Who's connected", body: "Wallet clusters and the addresses that funded them." },
+// Below-the-fold + framer-motion heavy: load it on demand, keep a static
+// first-read visible while the chunk arrives (no CLS, works without JS).
+const RulerCarousel = dynamic(
+  () => import("@/components/ui/ruler-carousel").then((m) => m.RulerCarousel),
   {
-    icon: ShieldCheck,
-    title: "Whether it's safe",
+    ssr: false,
+    loading: () => (
+      <div className="mx-auto max-w-xl pt-[95px] text-center">
+        <p className="font-display text-[2rem] font-bold uppercase tracking-[-0.01em] text-ink sm:text-[3.25rem]">
+          Connections
+        </p>
+        <p className="mt-10 font-display text-lg font-semibold text-lime">Who&apos;s connected</p>
+        <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">
+          Wallet clusters and the addresses that funded them.
+        </p>
+      </div>
+    ),
+  }
+);
+
+const READS: CarouselItem[] = [
+  {
+    id: 1,
+    title: "Connections",
+    heading: "Who's connected",
+    body: "Wallet clusters and the addresses that funded them.",
+  },
+  {
+    id: 2,
+    title: "Safety",
+    heading: "Whether it's safe",
     body: "An A-to-F grade from concentration, funding, and LP state, with the reasons shown.",
   },
-  { icon: History, title: "What a wallet has done", body: "Full reconstructed trade history and P&L, every token." },
+  {
+    id: 3,
+    title: "History",
+    heading: "What a wallet has done",
+    body: "Full reconstructed trade history and P&L, every token.",
+  },
 ];
 
 export default function LandingPage() {
@@ -152,16 +182,8 @@ export default function LandingPage() {
       </section>
 
       {/* ================= What it reads ================= */}
-      <section className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {READS.map((r) => (
-            <div key={r.title} className="rounded-2xl border border-line bg-surface/50 p-6">
-              <r.icon className="size-6 text-lime" />
-              <h3 className="mt-4 font-display text-xl font-semibold text-ink">{r.title}</h3>
-              <p className="mt-2 text-[16px] leading-relaxed text-ink-muted">{r.body}</p>
-            </div>
-          ))}
-        </div>
+      <section className="mx-auto max-w-6xl overflow-hidden px-5 py-24 sm:px-8">
+        <RulerCarousel items={READS} />
       </section>
 
       {/* ================= Product showcase ================= */}
