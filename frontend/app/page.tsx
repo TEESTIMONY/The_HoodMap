@@ -7,15 +7,39 @@ import {
   ShieldCheck,
   Network,
   History,
-  TrendingUp,
-  Boxes,
+  ArrowRight,
+  ArrowDown,
+  Sparkles,
+  FlaskConical,
+  Check,
+  Clock,
+  Info,
+  Twitter,
+  Send,
+  Github,
+  MessageCircle,
 } from "lucide-react";
 import { GatewayFlow } from "@/components/ui/gateway-flow";
-import { HoodMark, HoodWordmark } from "@/components/site/logo";
+import { HoodWordmark } from "@/components/site/logo";
 import { SiteNav } from "@/components/site/site-nav";
+import { CookieBar } from "@/components/site/cookie-bar";
+import { HeroDecor } from "@/components/site/hero-decor";
 import { ScanInput } from "@/components/site/scan-input";
 import { ProductCard } from "@/components/site/product-card";
-import { EdgeCard } from "@/components/site/edge-card";
+
+const HERO_CHIPS = [
+  { icon: FlaskConical, label: "On-chain, not scraped" },
+  { icon: Check, label: "No login" },
+  { icon: Clock, label: "Live updates" },
+  { icon: Info, label: "Every token & wallet" },
+];
+
+const SOCIALS = [
+  { icon: Twitter, href: "https://x.com", label: "X" },
+  { icon: Send, href: "https://t.me", label: "Telegram" },
+  { icon: MessageCircle, href: "https://discord.com", label: "Discord" },
+  { icon: Github, href: "https://github.com", label: "GitHub" },
+];
 
 const NAV = [
   { label: "Scan", href: "/scan" },
@@ -73,65 +97,99 @@ export default function LandingPage() {
       {/* ================= Hero ================= */}
       <section className="relative flex min-h-[100svh] flex-col overflow-hidden">
         {/* converging flow */}
-        <GatewayFlow className="absolute inset-0" convergeY={0.56} density={1} />
+        <GatewayFlow className="absolute inset-0" convergeY={0.66} density={0.7} opacity={0.7} />
+        <HeroDecor />
 
         {/* washes for legibility */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-canvas via-canvas/70 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-canvas via-canvas/85 to-transparent" />
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_55%_at_50%_56%,transparent_0%,rgba(6,7,10,0.35)_70%,rgba(6,7,10,0.7)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_55%_at_50%_50%,transparent_0%,rgba(6,7,10,0.35)_70%,rgba(6,7,10,0.7)_100%)]" />
 
-        {/* bottom dome */}
-        <div className="pointer-events-none absolute -bottom-[46vw] left-1/2 h-[70vw] w-[92vw] -translate-x-1/2 rounded-[50%] border border-line-strong bg-[radial-gradient(60%_60%_at_50%_0%,rgba(214,250,77,0.06)_0%,rgba(6,7,10,0)_60%)]" />
+        {/* green glow behind the headline */}
+        <div className="pointer-events-none absolute left-1/2 top-[40%] h-[380px] w-[min(760px,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-moss/15 blur-[130px]" />
 
-        {/* convergence emblem */}
-        <div className="pointer-events-none absolute left-1/2 top-[64%] z-10 -translate-x-1/2 -translate-y-1/2 sm:top-[56%]">
-          <div className="relative">
-            <div className="absolute inset-0 -z-10 rounded-full bg-lime/20 blur-2xl" />
-            <HoodMark className="size-16 drop-shadow-[0_0_16px_rgba(214,250,77,0.6)]" />
+        {/* content */}
+        <div className="relative z-30 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center px-5 pt-36 text-center sm:pt-40">
+          {/* eyebrow */}
+          <div className="mb-7 inline-flex items-center gap-1.5 font-mono text-[12px] text-ink-faint">
+            <span>Signal,</span>
+            <span className="text-ink-muted">not</span>
+            <span className="inline-flex items-center gap-1 text-lime">
+              <Sparkles className="size-3.5" />
+              noise
+            </span>
+          </div>
+
+          {/* headline */}
+          <h1 className="mx-auto max-w-[12ch] font-display text-[12vw] font-bold uppercase leading-[0.98] tracking-[-0.01em] text-ink [text-shadow:0_0_44px_rgba(23,176,74,0.35)] sm:max-w-none sm:text-5xl md:text-6xl lg:text-[4.25rem]">
+            HoodMap
+            <br />
+            <span className="text-lime">Wallet Intelligence</span>
+          </h1>
+
+          {/* feature chips */}
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[11px] text-ink-muted">
+            {HERO_CHIPS.map((c) => (
+              <span key={c.label} className="inline-flex items-center gap-1.5">
+                <c.icon className="size-3.5 text-lime" />
+                {c.label}
+              </span>
+            ))}
+          </div>
+
+          {/* CTAs */}
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/scan"
+              className="group inline-flex items-center gap-2.5 rounded-full bg-ink py-2 pl-6 pr-2 font-mono text-[14px] font-semibold text-canvas transition-colors hover:bg-white"
+            >
+              Launch app
+              <span className="grid size-7 place-items-center rounded-full bg-lime text-canvas transition-transform group-hover:translate-x-0.5">
+                <ArrowRight className="size-4" />
+              </span>
+            </Link>
+            <Link
+              href="/scan"
+              className="inline-flex items-center rounded-full border border-line-strong bg-surface/40 px-6 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40"
+            >
+              Live demo
+            </Link>
           </div>
         </div>
 
-        {/* edge stat cards */}
-        <EdgeCard
-          side="left"
-          icon={Boxes}
-          eyebrow="Holder clusters"
-          primary="3 clusters · 41%"
-          secondary="Funded from one address"
-        />
-        <EdgeCard
-          side="right"
-          icon={TrendingUp}
-          eyebrow="Wallet passport"
-          primary="74% win rate"
-          secondary="+$13,215 realized"
-        />
-
-        {/* content */}
-        <div className="relative z-30 mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 sm:px-8">
-          {/* headline */}
-          <div className="flex flex-col items-center pt-32 text-center sm:pt-36">
-            <span className="mb-7 max-w-[92vw] rounded-full border border-line bg-surface/50 px-4 py-2 text-center font-mono text-[13px] tracking-wide text-ink-muted backdrop-blur-md sm:text-[15px]">
-              The intelligence layer for Robinhood Chain
-            </span>
-            <h1 className="mx-auto max-w-[13ch] font-display text-[11vw] font-bold uppercase leading-[0.96] tracking-[-0.01em] text-ink sm:max-w-none sm:text-6xl md:text-7xl lg:text-[5rem]">
-              HoodMap
-              <br />
-              <span className="text-lime">Wallet Intelligence</span>
-            </h1>
-            <p className="mt-7 max-w-2xl text-pretty text-lg leading-relaxed text-ink-muted sm:text-xl">
-              Who really holds a token · who&apos;s connected · whether it&apos;s safe — and how any
-              wallet has actually done.
-            </p>
+        {/* bottom rail */}
+        <div className="relative z-30 mx-auto flex w-full max-w-[1600px] items-end justify-between gap-4 px-5 pb-8 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3 font-mono text-[12px] text-ink-faint">
+            <span className="hidden sm:inline">Follow us</span>
+            <div className="flex items-center gap-3">
+              {SOCIALS.map((s) => (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={s.label}
+                  className="text-ink-muted transition-colors hover:text-lime"
+                >
+                  <s.icon className="size-4" />
+                </a>
+              ))}
+            </div>
           </div>
-
-          {/* bottom CTA */}
-          <div className="mt-auto flex flex-col items-center gap-5 pb-14 text-center">
-            <p className="font-mono text-[15px] uppercase tracking-[0.18em] text-ink-faint">
-              Paste a token or wallet
-            </p>
-            <ScanInput className="max-w-xl" />
+          <div className="hidden items-center gap-2 font-mono text-[12px] text-ink-faint sm:flex">
+            Scroll to explore
+            <ArrowDown className="size-3.5 animate-bounce" />
           </div>
+        </div>
+      </section>
+
+      {/* ================= Scan entry ================= */}
+      <section className="relative z-30 px-5 pt-4">
+        <div className="mx-auto flex max-w-xl flex-col items-center gap-4 text-center">
+          <p className="font-mono text-[13px] uppercase tracking-[0.18em] text-ink-faint">
+            Paste a token or wallet
+          </p>
+          <ScanInput />
         </div>
       </section>
 
@@ -207,6 +265,8 @@ export default function LandingPage() {
           </p>
         </div>
       </footer>
+
+      <CookieBar />
     </main>
   );
 }
