@@ -17,9 +17,9 @@ export function HoodMark({ className }: { className?: string }) {
       <path
         d="M14 6.5 A 19 19 0 1 1 13 41.2"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="1.9"
         strokeLinecap="round"
-        opacity="0.55"
+        opacity="0.7"
       />
       {/* H edges */}
       <path
@@ -60,8 +60,8 @@ export function HoodMark({ className }: { className?: string }) {
 export function HoodWordmark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <HoodMark className="size-9 shrink-0" />
-      <span className="font-display text-[22px] font-semibold text-ink">
+      <HoodMark className="size-11 shrink-0" />
+      <span className="font-display text-[23px] font-semibold text-ink">
         Hood<span className="text-lime">Map</span>
       </span>
     </span>

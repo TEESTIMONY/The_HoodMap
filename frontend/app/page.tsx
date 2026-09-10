@@ -4,7 +4,6 @@ import {
   Waypoints,
   Wallet,
   Flame,
-  ArrowUpRight,
   ShieldCheck,
   Network,
   History,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import { GatewayFlow } from "@/components/ui/gateway-flow";
 import { HoodMark, HoodWordmark } from "@/components/site/logo";
+import { SiteNav } from "@/components/site/site-nav";
 import { ScanInput } from "@/components/site/scan-input";
 import { ProductCard } from "@/components/site/product-card";
 import { EdgeCard } from "@/components/site/edge-card";
@@ -68,6 +68,8 @@ const READS = [
 export default function LandingPage() {
   return (
     <main className="relative">
+      <SiteNav />
+
       {/* ================= Hero ================= */}
       <section className="relative flex min-h-[100svh] flex-col overflow-hidden">
         {/* converging flow */}
@@ -107,39 +109,8 @@ export default function LandingPage() {
 
         {/* content */}
         <div className="relative z-30 mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 sm:px-8">
-          {/* nav */}
-          <nav className="flex items-center justify-between py-6">
-            <HoodWordmark />
-            <div className="hidden items-center gap-1 rounded-full border border-line-strong bg-surface/60 px-2 py-1.5 font-mono text-[15px] text-ink-muted backdrop-blur-md md:flex">
-              {NAV.map((n) => (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className="rounded-full px-4 py-1.5 transition-colors hover:bg-surface-3 hover:text-ink"
-                >
-                  {n.label}
-                </Link>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/scan"
-                className="hidden rounded-xl border border-line-strong bg-surface/70 px-4 py-2.5 font-mono text-[15px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink sm:inline-flex"
-              >
-                Login
-              </Link>
-              <Link
-                href="/scan"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-lime px-4 py-2.5 font-mono text-[15px] font-semibold text-canvas transition-shadow hover:shadow-glow-lime-sm"
-              >
-                Launch
-                <ArrowUpRight className="size-[18px]" />
-              </Link>
-            </div>
-          </nav>
-
           {/* headline */}
-          <div className="flex flex-col items-center pt-[6vh] text-center">
+          <div className="flex flex-col items-center pt-32 text-center sm:pt-36">
             <span className="mb-7 max-w-[92vw] rounded-full border border-line bg-surface/50 px-4 py-2 text-center font-mono text-[13px] tracking-wide text-ink-muted backdrop-blur-md sm:text-[15px]">
               The intelligence layer for Robinhood Chain
             </span>
