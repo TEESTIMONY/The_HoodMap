@@ -130,7 +130,7 @@ export default function TokenScanPage() {
         )}
       >
         <div className={pinned ? "lg:shrink-0" : undefined}>
-          <ScanInput className="max-w-none" />
+          <ScanInput className="max-w-lg" />
         </div>
 
         {state === "invalid" && (
@@ -231,8 +231,8 @@ export default function TokenScanPage() {
               </div>
 
               {/* right — token identity (pinned) + the one scroll region */}
-              <div className="order-1 flex flex-col gap-2 lg:order-2 lg:h-full lg:min-h-0">
-                <div className="flex items-start gap-2 lg:shrink-0">
+              <div className="order-1 flex flex-col gap-1.5 lg:order-2 lg:h-full lg:min-h-0">
+                <div className="flex items-start gap-2 px-1 lg:shrink-0">
                   <span
                     className="grid size-9 shrink-0 place-items-center rounded-md text-[14px] font-bold text-white"
                     style={{ backgroundColor: monogramColor(sym) }}
