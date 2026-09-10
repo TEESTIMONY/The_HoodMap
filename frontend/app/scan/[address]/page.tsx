@@ -130,7 +130,7 @@ export default function TokenScanPage() {
         )}
       >
         <div className={pinned ? "lg:shrink-0" : undefined}>
-          <ScanInput className="max-w-lg" />
+          <ScanInput className="mx-auto max-w-xl" />
         </div>
 
         {state === "invalid" && (
