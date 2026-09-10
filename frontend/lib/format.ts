@@ -59,6 +59,25 @@ export function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+/** Raw base-unit integer string -> compact human token amount ("2.1K", "3.13M"). */
+export function tokenAmount(raw: string | null | undefined, decimals: number | null | undefined): string {
+  if (!raw) return "—";
+  const d = decimals ?? 18;
+  let s = raw.replace("-", "");
+  const neg = raw.startsWith("-");
+  if (s.length <= d) s = s.padStart(d + 1, "0");
+  const whole = s.slice(0, s.length - d) || "0";
+  const n = Number(whole) + Number(`0.${s.slice(s.length - d)}` || 0);
+  if (!Number.isFinite(n)) return "—";
+  const v = neg ? -n : n;
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  if (abs >= 1) return v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return v.toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
 /** Deterministic accent for a token monogram. */
 export function monogramColor(seed: string): string {
   let h = 0;

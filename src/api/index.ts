@@ -179,7 +179,7 @@ app.get<{ Params: { address: string }; Querystring: { limit?: string; before?: s
 // identity fields with nulls for price/volume/liquidity.
 const TOKEN_DETAIL_SQL = `
   SELECT t.address, t.name, t.symbol, t.decimals, t.total_supply, t.token_type, t.verified,
-         t.logo_url, t.created_block,
+         t.logo_url, t.created_block, t.created_at AS first_seen,
          ts.price, ts.price_native, ts.market_cap, ts.fdv, ts.liquidity_usd,
          ts.volume_24h, ts.volume_6h, ts.volume_1h,
          ts.buy_count_24h, ts.sell_count_24h, ts.pool_count,
@@ -211,6 +211,168 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address", async (req, 
     if (computed) result = await query(TOKEN_DETAIL_SQL, [config.CHAIN_ID, address]);
   }
   return result.rows[0];
+});
+
+// Recent trades for a token (either side), for the scan-page transaction feed.
+app.get<{ Params: { address: string }; Querystring: { limit?: string; before?: string } }>(
+  "/api/v1/tokens/:address/swaps",
+  async (req) => {
+    const address = requireAddress(req.params.address);
+    const limit = Math.min(Number(req.query.limit) || 40, 200);
+    const before = req.query.before ? Number(req.query.before) : null;
+    const result = await query(
+      `SELECT s.transaction_hash, s.log_index, s.wallet_address, s.dex, s.pool_address,
+              s.usd_value, s.block_number, s.timestamp,
+              CASE WHEN s.token_out = $2 THEN 'buy' ELSE 'sell' END AS side,
+              (CASE WHEN s.token_out = $2 THEN s.amount_out ELSE s.amount_in END) AS token_amount
+         FROM swaps s
+        WHERE s.chain_id = $1 AND (s.token_in = $2 OR s.token_out = $2)
+          AND ($3::bigint IS NULL OR s.block_number < $3)
+        ORDER BY s.block_number DESC, s.log_index DESC
+        LIMIT $4`,
+      [config.CHAIN_ID, address, before, limit]
+    );
+    return { token: address, count: result.rows.length, swaps: result.rows };
+  }
+);
+
+const DEAD_ADDRS = new Set([
+  "0x0000000000000000000000000000000000000000",
+  "0x000000000000000000000000000000000000dead",
+]);
+
+type Grade = "A" | "B" | "C" | "D" | "E" | "F";
+function gradeFor(score: number): Grade {
+  if (score >= 85) return "A";
+  if (score >= 70) return "B";
+  if (score >= 55) return "C";
+  if (score >= 40) return "D";
+  if (score >= 25) return "E";
+  return "F";
+}
+
+// Holder concentration + a HoodScore grade, from the indexed transfer window.
+// Balances are net (in - out) over transfers we've seen, so they're an estimate,
+// not a full chain snapshot — the response says as much.
+app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/report", async (req, reply) => {
+  const address = requireAddress(req.params.address);
+
+  const [holdersRes, poolsRes, statsRes] = await Promise.all([
+    query(
+      `WITH deltas AS (
+         SELECT to_address AS addr, amount::numeric AS d
+           FROM token_transfers WHERE chain_id = $1 AND token_address = $2
+         UNION ALL
+         SELECT from_address AS addr, -amount::numeric AS d
+           FROM token_transfers WHERE chain_id = $1 AND token_address = $2
+       ),
+       bal AS (SELECT addr, SUM(d) AS balance FROM deltas GROUP BY addr HAVING SUM(d) > 0),
+       tot AS (SELECT COALESCE(SUM(balance), 0) AS supply, COUNT(*) AS holders FROM bal)
+       SELECT b.addr, b.balance,
+              (b.balance / NULLIF(t.supply, 0) * 100)::float8 AS pct,
+              t.holders::int AS holder_count, t.supply AS tracked_supply,
+              (SELECT COUNT(*) FROM token_transfers WHERE chain_id = $1 AND token_address = $2)::int AS transfer_count
+         FROM bal b CROSS JOIN tot t
+        ORDER BY b.balance DESC
+        LIMIT 25`,
+      [config.CHAIN_ID, address]
+    ),
+    query(
+      `SELECT p.address, p.dex, ps.liquidity_usd, ps.volume_24h,
+              t0.symbol AS sym0, t1.symbol AS sym1
+         FROM pools p
+         LEFT JOIN pair_statistics ps ON ps.chain_id = p.chain_id AND ps.pool_address = p.address
+         LEFT JOIN tokens t0 ON t0.chain_id = p.chain_id AND t0.address = p.token0
+         LEFT JOIN tokens t1 ON t1.chain_id = p.chain_id AND t1.address = p.token1
+        WHERE p.chain_id = $1 AND (p.token0 = $2 OR p.token1 = $2)
+        ORDER BY ps.liquidity_usd DESC NULLS LAST, ps.volume_24h DESC NULLS LAST
+        LIMIT 8`,
+      [config.CHAIN_ID, address]
+    ),
+    query(
+      `SELECT liquidity_usd, price_confidence, buy_count_24h, sell_count_24h
+         FROM token_statistics WHERE chain_id = $1 AND token_address = $2`,
+      [config.CHAIN_ID, address]
+    ),
+  ]);
+
+  const poolAddrs = new Set<string>(poolsRes.rows.map((p: { address: string }) => p.address.toLowerCase()));
+  const rows = holdersRes.rows as {
+    addr: string;
+    pct: number | null;
+    holder_count: number;
+    transfer_count: number;
+  }[];
+  const holderCount = rows[0]?.holder_count ?? 0;
+  const transferCount = rows[0]?.transfer_count ?? 0;
+
+  const top = rows.map((r) => {
+    const a = r.addr.toLowerCase();
+    return {
+      address: r.addr,
+      pct: r.pct ?? 0,
+      is_pool: poolAddrs.has(a),
+      is_burn: DEAD_ADDRS.has(a),
+    };
+  });
+  const wallets = top.filter((h) => !h.is_pool && !h.is_burn);
+  const top1 = wallets[0]?.pct ?? 0;
+  const top10 = wallets.slice(0, 10).reduce((s, h) => s + h.pct, 0);
+  const poolPct = top.filter((h) => h.is_pool).reduce((s, h) => s + h.pct, 0);
+
+  const stats = statsRes.rows[0] as
+    | { liquidity_usd: string | null; price_confidence: string | null }
+    | undefined;
+  const liq = stats?.liquidity_usd ? Number(stats.liquidity_usd) : 0;
+  const conf = stats?.price_confidence ?? "low";
+
+  let score = 100;
+  const reasons: string[] = [];
+  if (top1 > 50) { score -= 45; reasons.push(`One wallet holds ${top1.toFixed(1)}% of the tracked supply`); }
+  else if (top1 > 30) { score -= 28; reasons.push(`Largest wallet holds ${top1.toFixed(1)}%`); }
+  else if (top1 > 15) { score -= 14; reasons.push(`Largest wallet holds ${top1.toFixed(1)}%`); }
+  else if (top1 > 6) { score -= 5; reasons.push(`Largest wallet holds ${top1.toFixed(1)}%`); }
+  else reasons.push(`Largest wallet holds ${top1.toFixed(1)}%`);
+
+  if (top10 > 80) { score -= 25; reasons.push(`Top 10 wallets hold ${top10.toFixed(1)}%`); }
+  else if (top10 > 60) { score -= 15; reasons.push(`Top 10 wallets hold ${top10.toFixed(1)}%`); }
+  else if (top10 > 40) { score -= 7; reasons.push(`Top 10 wallets hold ${top10.toFixed(1)}%`); }
+  else reasons.push(`Top 10 wallets hold ${top10.toFixed(1)}%`);
+
+  if (holderCount > 0 && holderCount < 25) { score -= 15; reasons.push(`Only ${holderCount} holders in the indexed window`); }
+  else if (holderCount < 100) { score -= 6; reasons.push(`${holderCount} holders in the indexed window`); }
+  else reasons.push(`${holderCount} holders in the indexed window`);
+
+  if (liq > 0 && liq < 10_000) { score -= 20; reasons.push(`Thin liquidity (~$${Math.round(liq).toLocaleString("en-US")})`); }
+  else if (liq < 50_000) { score -= 9; reasons.push(`Modest liquidity (~$${Math.round(liq).toLocaleString("en-US")})`); }
+  else if (liq > 0) reasons.push(`Liquidity ~$${Math.round(liq).toLocaleString("en-US")}`);
+
+  if (conf === "low") { score -= 10; reasons.push("Price confidence is low"); }
+  else if (conf === "medium") { score -= 3; }
+
+  if (transferCount === 0) {
+    return reply.send({
+      pools: poolsRes.rows,
+      holders: null,
+      hoodscore: null,
+      note: "No transfers indexed for this token yet.",
+    });
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  return {
+    pools: poolsRes.rows,
+    holders: {
+      count: holderCount,
+      transfers: transferCount,
+      top1_pct: top1,
+      top10_pct: top10,
+      pool_pct: poolPct,
+      top: top.slice(0, 20),
+    },
+    hoodscore: { grade: gradeFor(score), score, reasons },
+    note: "Balances are net over the indexed transfer window, not a full chain snapshot.",
+  };
 });
 
 // ---- DEX read layer ----
