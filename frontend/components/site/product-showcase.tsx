@@ -193,8 +193,12 @@ export function ProductShowcase() {
             <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface/50 px-3.5 py-1.5 font-mono text-[12px] text-ink-muted backdrop-blur-md">
               What is <span className="text-lime">HoodMap</span>?
             </span>
-            <h3 className="mt-5 max-w-[16ch] font-display text-[1.9rem] font-bold uppercase leading-[1.08] tracking-[-0.01em] text-ink sm:text-[2.4rem]">
-              DexScreener, Bubblemaps, and a P&amp;L tracker.
+            <h3 className="mt-5 font-display text-[2rem] font-bold uppercase leading-[1.08] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
+              Every token,
+              <br />
+              every wallet,
+              <br />
+              one terminal.
             </h3>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-muted">
               Paste a token or a wallet. Everything below reads the same raw transfer history. No
