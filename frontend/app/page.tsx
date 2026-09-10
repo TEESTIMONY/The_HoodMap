@@ -22,6 +22,7 @@ import { HeroDecor } from "@/components/site/hero-decor";
 import { ScanInput } from "@/components/site/scan-input";
 import { ProductShowcase } from "@/components/site/product-showcase";
 import { Evidence } from "@/components/site/evidence";
+import { Community } from "@/components/site/community";
 
 const HERO_CHIPS = [
   { icon: FlaskConical, label: "On-chain, not scraped" },
@@ -192,6 +193,9 @@ export default function LandingPage() {
 
       {/* ================= Evidence / voice ================= */}
       <Evidence />
+
+      {/* ================= Community ================= */}
+      <Community />
 
       {/* ================= Footer ================= */}
       <Footerdemo />

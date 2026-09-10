@@ -68,12 +68,17 @@ const config: Config = {
           from: { transform: "rotate(0deg)" },
           to: { transform: "rotate(360deg)" },
         },
+        "hex-drift": {
+          from: { transform: "translateY(0)" },
+          to: { transform: "translateY(-50%)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.7s cubic-bezier(0.16,1,0.3,1) both",
         marquee: "marquee 46s linear infinite",
         "marquee-reverse": "marquee-reverse 52s linear infinite",
         "spin-slow": "spin-slow 40s linear infinite",
+        "hex-drift": "hex-drift 90s linear infinite",
       },
     },
   },

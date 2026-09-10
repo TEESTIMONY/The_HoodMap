@@ -57,7 +57,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee,
   .animate-marquee-reverse,
-  .animate-spin-slow {
+  .animate-spin-slow,
+  .animate-hex-drift {
     animation: none !important;
   }
 }
