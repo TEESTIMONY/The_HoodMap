@@ -125,8 +125,8 @@ export default function TokenScanPage() {
 
       <div
         className={cn(
-          "mx-auto w-full max-w-[1760px] px-2 pb-8 pt-[76px] sm:px-3 sm:pt-20",
-          pinned && "lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:pb-2 lg:pt-[70px]"
+          "w-full px-1 pb-8 pt-[76px] sm:px-1.5 sm:pt-20",
+          pinned && "lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:pb-1.5 lg:pt-[68px]"
         )}
       >
         <div className={pinned ? "lg:shrink-0" : undefined}>
