@@ -21,6 +21,7 @@ import { CookieBar } from "@/components/site/cookie-bar";
 import { HeroDecor } from "@/components/site/hero-decor";
 import { ScanInput } from "@/components/site/scan-input";
 import { ProductShowcase } from "@/components/site/product-showcase";
+import { Evidence } from "@/components/site/evidence";
 
 const HERO_CHIPS = [
   { icon: FlaskConical, label: "On-chain, not scraped" },
@@ -190,22 +191,7 @@ export default function LandingPage() {
       <ProductShowcase />
 
       {/* ================= Evidence / voice ================= */}
-      <section className="mx-auto max-w-6xl px-5 pb-28 sm:px-8">
-        <div className="rounded-2xl border border-line bg-surface-2/60 p-7 sm:p-10">
-          <p className="font-mono text-[14px] uppercase tracking-[0.2em] text-ink-faint">
-            State findings plainly, with the evidence
-          </p>
-          <p className="mt-5 font-mono text-xl leading-relaxed text-ink sm:text-2xl">
-            <span className="text-lime">3 wallet clusters</span> control <span className="text-lime">41%</span>{" "}
-            of supply. Top cluster funded from <span className="text-lime">one address</span>. LP not
-            locked.
-          </p>
-          <p className="mt-4 font-mono text-[15px] text-ink-faint">
-            HoodScore <span className="text-warning">C</span> · reasons attached · derived from
-            on-chain transfer history
-          </p>
-        </div>
-      </section>
+      <Evidence />
 
       {/* ================= Footer ================= */}
       <Footerdemo />
