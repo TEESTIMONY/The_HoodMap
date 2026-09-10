@@ -140,7 +140,7 @@ export function SiteNav() {
         <div className="col-start-3 flex items-center justify-self-end gap-2">
           <Link
             href="/whitepaper"
-            className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3.5 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"
+            className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"
           >
             <FileText className="size-3.5" />
             Whitepaper
@@ -158,7 +158,7 @@ export function SiteNav() {
 
           <Link
             href="/wallet"
-            className="hidden shrink-0 whitespace-nowrap rounded-full border border-line-strong px-4 py-2 font-mono text-[13px] text-ink transition-colors hover:border-lime/40 2xl:inline-flex"
+            className="hidden shrink-0 whitespace-nowrap rounded-full border border-line-strong px-3.5 py-2 font-mono text-[13px] text-ink transition-colors hover:border-lime/40 xl:inline-flex"
           >
             Wallet Passport
           </Link>

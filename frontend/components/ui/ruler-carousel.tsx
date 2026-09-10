@@ -18,8 +18,8 @@ interface InfiniteItem extends CarouselItem {
   originalIndex: number;
 }
 
-const ITEM_WIDTH = 380;
-const GAP = 100;
+const ITEM_WIDTH = 480;
+const GAP = 120;
 const SLOT = ITEM_WIDTH + GAP;
 
 function createInfiniteItems(items: CarouselItem[]): InfiniteItem[] {
@@ -36,11 +36,11 @@ function RulerLines({ top = true, totalLines = 61 }: { top?: boolean; totalLines
   const spacing = 100 / (totalLines - 1);
   const center = Math.floor(totalLines / 2);
   return (
-    <div className="relative h-8 w-full px-4">
+    <div className="relative h-10 w-full px-4">
       {Array.from({ length: totalLines }, (_, i) => {
         const isCenter = i === center;
         const isFifth = i % 5 === 0;
-        const height = isCenter ? "h-8" : isFifth ? "h-4" : "h-2.5";
+        const height = isCenter ? "h-10" : isFifth ? "h-5" : "h-3";
         const color = isCenter ? "bg-lime" : "bg-ink-faint";
         return (
           <div
@@ -137,7 +137,7 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
             step(1);
           }
         }}
-        className="relative flex h-[190px] flex-col justify-center rounded-2xl outline-none ring-lime/30 focus-visible:ring-2"
+        className="relative flex h-[210px] flex-col justify-center rounded-2xl outline-none ring-lime/30 focus-visible:ring-2 sm:h-[300px]"
       >
         <RulerLines top />
 
@@ -156,7 +156,7 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
                   type="button"
                   onClick={() => goToOriginal(item.originalIndex)}
                   aria-current={isActive}
-                  className={`flex shrink-0 items-center justify-center whitespace-nowrap font-display text-[2rem] font-bold uppercase tracking-[-0.01em] transition-colors sm:text-[3.25rem] ${
+                  className={`flex shrink-0 items-center justify-center whitespace-nowrap font-display text-[2.5rem] font-bold uppercase tracking-[-0.01em] transition-colors sm:text-[4.25rem] ${
                     isActive ? "text-ink" : "text-ink-faint hover:text-ink-muted"
                   }`}
                   style={{ width: ITEM_WIDTH }}
@@ -184,17 +184,17 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
           >
             {active.heading && (
-              <p className="font-display text-lg font-semibold text-lime">{active.heading}</p>
+              <p className="font-display text-xl font-semibold text-lime">{active.heading}</p>
             )}
             {active.body && (
-              <p className="mt-2 text-[15px] leading-relaxed text-ink-muted">{active.body}</p>
+              <p className="mt-2.5 text-[16px] leading-relaxed text-ink-muted">{active.body}</p>
             )}
           </motion.div>
         </AnimatePresence>
       </div>
 
       {/* controls */}
-      <div className="mt-8 flex items-center justify-center gap-5">
+      <div className="mt-9 flex items-center justify-center gap-6">
         <button
           type="button"
           onClick={() => step(-1)}
@@ -202,9 +202,9 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
           aria-label="Previous"
           className="text-ink-muted transition-colors hover:text-lime disabled:opacity-40"
         >
-          <Rewind className="size-5" strokeWidth={1.75} />
+          <Rewind className="size-6" strokeWidth={1.75} />
         </button>
-        <div className="tabular font-mono text-[13px] text-ink-faint">
+        <div className="tabular font-mono text-[14px] text-ink-faint">
           <span className="text-ink-muted">{activeOriginal + 1}</span>
           <span className="mx-1">/</span>
           <span>{perSet}</span>
@@ -216,7 +216,7 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
           aria-label="Next"
           className="text-ink-muted transition-colors hover:text-lime disabled:opacity-40"
         >
-          <FastForward className="size-5" strokeWidth={1.75} />
+          <FastForward className="size-6" strokeWidth={1.75} />
         </button>
       </div>
     </div>
