@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TokenRow } from "@/lib/api";
 import { count, monogramColor, priceUsd, shortAddr, usdCompact } from "@/lib/format";
+import { CopyButton } from "@/components/ui/copy-button";
 
 const COLS =
   "grid-cols-[44px_minmax(180px,2fr)_repeat(5,minmax(96px,1fr))_minmax(108px,1fr)]";
@@ -69,8 +70,9 @@ function Row({ rank, r }: { rank: number; r: TokenRow }) {
             </span>
             {r.verified && <ShieldCheck className="size-3 shrink-0 text-lime" />}
           </span>
-          <span className="block truncate text-[11px] text-ink-faint">
-            {r.name || shortAddr(r.address)}
+          <span className="flex items-center gap-1 text-[11px] text-ink-faint">
+            <span className="truncate">{r.name || shortAddr(r.address)}</span>
+            <CopyButton value={r.address} label="contract address" />
           </span>
         </span>
       </div>
