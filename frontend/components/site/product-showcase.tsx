@@ -190,10 +190,7 @@ export function ProductShowcase() {
 
           {/* right — the toolset */}
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface/50 px-3.5 py-1.5 font-mono text-[12px] text-ink-muted backdrop-blur-md">
-              What is <span className="text-lime">HoodMap</span>?
-            </span>
-            <h3 className="mt-5 font-display text-[2rem] font-bold uppercase leading-[1.08] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
+            <h3 className="font-display text-[2rem] font-bold uppercase leading-[1.08] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
               Every token,
               <br />
               every wallet,
