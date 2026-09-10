@@ -8,7 +8,7 @@ import { HoodMark } from "@/components/site/logo";
  */
 export function Evidence() {
   return (
-    <section className="px-5 py-24 sm:py-28">
+    <section className="relative overflow-x-clip px-5 py-24 sm:py-28">
       <div className="relative mx-auto max-w-3xl">
         {/* shallow arc behind the mark */}
         <svg
@@ -16,7 +16,7 @@ export function Evidence() {
           viewBox="0 0 1600 320"
           fill="none"
           preserveAspectRatio="none"
-          className="pointer-events-none absolute left-1/2 top-[-52px] h-[320px] w-[1600px] max-w-[176%] -translate-x-1/2 text-line-strong"
+          className="pointer-events-none absolute left-1/2 top-[-52px] h-[320px] w-[1600px] max-w-[130%] -translate-x-1/2 text-line-strong"
         >
           <path d="M0 320 Q 800 -140 1600 320" stroke="currentColor" strokeWidth="1" strokeOpacity="0.6" />
         </svg>

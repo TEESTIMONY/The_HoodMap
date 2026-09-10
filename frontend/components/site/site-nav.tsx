@@ -59,9 +59,9 @@ export function SiteNav() {
           : "border-b border-transparent"
       )}
     >
-      <div className="relative z-50 mx-auto grid w-full max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+      <div className="relative z-50 mx-auto grid w-full max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
         {/* left — logo */}
-        <Link href="/" aria-label="HoodMap home" className="justify-self-start">
+        <Link href="/" aria-label="HoodMap home" className="min-w-0 justify-self-start">
           <HoodWordmark />
         </Link>
 
@@ -137,7 +137,7 @@ export function SiteNav() {
         </nav>
 
         {/* right — whitepaper + CTAs */}
-        <div className="col-start-3 flex items-center justify-self-end gap-2">
+        <div className="col-start-3 flex items-center justify-self-end gap-1.5 sm:gap-2">
           <Link
             href="/whitepaper"
             className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"
@@ -148,11 +148,11 @@ export function SiteNav() {
 
           <Link
             href="/scan"
-            className="group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-ink py-1.5 pl-4 pr-1.5 font-mono text-[13px] font-semibold text-canvas transition-colors hover:bg-white"
+            className="group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-ink py-1.5 pl-3.5 pr-1.5 font-mono text-[12px] font-semibold text-canvas transition-colors hover:bg-white sm:gap-2 sm:pl-4 sm:text-[13px]"
           >
             Scan Token
-            <span className="grid size-6 place-items-center rounded-full bg-lime text-canvas transition-transform group-hover:translate-x-0.5">
-              <ArrowRight className="size-3.5" />
+            <span className="grid size-5 place-items-center rounded-full bg-lime text-canvas transition-transform group-hover:translate-x-0.5 sm:size-6">
+              <ArrowRight className="size-3 sm:size-3.5" />
             </span>
           </Link>
 
@@ -168,9 +168,9 @@ export function SiteNav() {
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-line-strong bg-surface/70 text-ink backdrop-blur-md xl:hidden"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-line-strong bg-surface/70 text-ink backdrop-blur-md sm:size-9 xl:hidden"
           >
-            {menuOpen ? <X className="size-[18px]" /> : <Menu className="size-[18px]" />}
+            {menuOpen ? <X className="size-4 sm:size-[18px]" /> : <Menu className="size-4 sm:size-[18px]" />}
           </button>
         </div>
       </div>

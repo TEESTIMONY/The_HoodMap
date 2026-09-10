@@ -8,6 +8,7 @@
 
 html {
   background: #06070a;
+  overflow-x: clip;
 }
 
 body {
@@ -15,7 +16,7 @@ body {
   color: #f4f5f7;
   font-feature-settings: "ss01", "cv01";
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Tabular figures for every data / metric surface (brand rule). */
