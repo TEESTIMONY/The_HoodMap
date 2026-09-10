@@ -62,12 +62,20 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
 
   const [activeIndex, setActiveIndex] = useState(perSet); // first item of the middle set
   const [resetting, setResetting] = useState(false);
+  const [paused, setPaused] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
 
   const step = (dir: 1 | -1) => {
     if (resetting) return;
     setActiveIndex((prev) => prev + dir);
   };
+
+  // Auto-advance, unless the reader is hovering / focused in, or reduced motion.
+  useEffect(() => {
+    if (reduce || paused) return;
+    const id = window.setInterval(() => setActiveIndex((v) => v + 1), 4200);
+    return () => window.clearInterval(id);
+  }, [reduce, paused]);
 
   const goToOriginal = (originalIndex: number) => {
     if (resetting) return;
@@ -79,22 +87,18 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
     setActiveIndex(closest);
   };
 
-  // Keep the active index inside the middle set so the loop feels endless.
+  // Keep the active index inside the middle set so the loop feels endless. The
+  // index jump must land while `resetting` is still true (so the track snaps
+  // instantly, no 3-slot slide), then spring transitions resume next frame.
   useEffect(() => {
     if (resetting) return;
-    if (activeIndex < perSet) {
-      setResetting(true);
-      requestAnimationFrame(() => {
-        setActiveIndex((v) => v + perSet);
-        setResetting(false);
-      });
-    } else if (activeIndex >= perSet * 2) {
-      setResetting(true);
-      requestAnimationFrame(() => {
-        setActiveIndex((v) => v - perSet);
-        setResetting(false);
-      });
-    }
+    const shift = activeIndex < perSet ? perSet : activeIndex >= perSet * 2 ? -perSet : 0;
+    if (!shift) return;
+    setResetting(true);
+    requestAnimationFrame(() => {
+      setActiveIndex((v) => v + shift);
+      requestAnimationFrame(() => setResetting(false));
+    });
   }, [activeIndex, perSet, resetting]);
 
   const targetX = -(activeIndex - mid) * SLOT;
@@ -111,7 +115,13 @@ export function RulerCarousel({ items }: { items: CarouselItem[] }) {
       : { type: "spring" as const, stiffness: 400, damping: 30 };
 
   return (
-    <div className="w-full">
+    <div
+      className="w-full"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
+    >
       <div
         ref={regionRef}
         role="group"

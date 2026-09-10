@@ -5,8 +5,8 @@ import Link from "next/link";
 import {
   ArrowRight,
   ChevronDown,
+  FileText,
   Flame,
-  Globe,
   Menu,
   Radar,
   Wallet,
@@ -80,7 +80,7 @@ export function SiteNav() {
                     aria-expanded={productsOpen}
                     onClick={() => setProductsOpen((v) => !v)}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-3.5 py-1.5 transition-colors hover:text-ink",
+                      "inline-flex items-center gap-1 rounded-full px-3 py-1.5 transition-colors hover:text-ink",
                       productsOpen ? "text-ink" : "text-ink-muted"
                     )}
                   >
@@ -120,7 +120,7 @@ export function SiteNav() {
                   key={l.label}
                   href={l.href}
                   className={cn(
-                    "rounded-full px-3.5 py-1.5 transition-colors hover:text-ink",
+                    "rounded-full px-3 py-1.5 transition-colors hover:text-ink",
                     l.active ? "bg-surface-3 text-ink" : "text-ink-muted"
                   )}
                 >
@@ -130,38 +130,37 @@ export function SiteNav() {
             )}
             <Link
               href="/scan"
-              className="ml-1 rounded-full border border-line-strong px-3.5 py-1.5 text-ink-muted transition-colors hover:text-ink"
+              className="ml-1 rounded-full border border-line-strong px-3 py-1.5 text-ink-muted transition-colors hover:text-ink"
             >
               Login / Register
             </Link>
         </nav>
 
-        {/* right — language + CTAs */}
+        {/* right — whitepaper + CTAs */}
         <div className="col-start-3 flex items-center justify-self-end gap-2">
-          <button
-            type="button"
-            className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"
+          <Link
+            href="/whitepaper"
+            className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3.5 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"
           >
-            <Globe className="size-3.5" />
-            English
-            <ChevronDown className="size-3" />
-          </button>
+            <FileText className="size-3.5" />
+            Whitepaper
+          </Link>
 
           <Link
             href="/scan"
             className="group inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-ink py-1.5 pl-4 pr-1.5 font-mono text-[13px] font-semibold text-canvas transition-colors hover:bg-white"
           >
-            Launch app
+            Scan Token
             <span className="grid size-6 place-items-center rounded-full bg-lime text-canvas transition-transform group-hover:translate-x-0.5">
               <ArrowRight className="size-3.5" />
             </span>
           </Link>
 
           <Link
-            href="/scan"
-            className="hidden shrink-0 whitespace-nowrap rounded-full border border-line-strong px-4 py-2 font-mono text-[13px] text-ink transition-colors hover:border-lime/40 xl:inline-flex"
+            href="/wallet"
+            className="hidden shrink-0 whitespace-nowrap rounded-full border border-line-strong px-4 py-2 font-mono text-[13px] text-ink transition-colors hover:border-lime/40 2xl:inline-flex"
           >
-            Live demo
+            Wallet Passport
           </Link>
 
           <button
@@ -202,30 +201,32 @@ export function SiteNav() {
             <p className="px-3 pb-1 pt-5 font-mono text-[11px] uppercase tracking-widest text-ink-faint">
               More
             </p>
-            {LINKS.filter((l) => !l.dropdown).map((l) => (
-              <Link
-                key={l.label}
-                href={l.href}
-                onClick={() => setMenuOpen(false)}
-                className="rounded-xl px-3 py-3 text-[16px] text-ink transition-colors hover:bg-surface-2"
-              >
-                {l.label}
-              </Link>
-            ))}
+            {[...LINKS.filter((l) => !l.dropdown), { label: "Whitepaper", href: "/whitepaper" }].map(
+              (l) => (
+                <Link
+                  key={l.label}
+                  href={l.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl px-3 py-3 text-[16px] text-ink transition-colors hover:bg-surface-2"
+                >
+                  {l.label}
+                </Link>
+              )
+            )}
             <div className="mt-5 flex flex-col gap-2 px-3">
               <Link
-                href="/scan"
+                href="/wallet"
                 onClick={() => setMenuOpen(false)}
                 className="rounded-full border border-line-strong py-3 text-center font-mono text-[15px] text-ink"
               >
-                Login / Register
+                Wallet Passport
               </Link>
               <Link
                 href="/scan"
                 onClick={() => setMenuOpen(false)}
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-ink py-3 font-mono text-[15px] font-semibold text-canvas"
               >
-                Launch app
+                Scan Token
                 <span className="grid size-6 place-items-center rounded-full bg-lime text-canvas">
                   <ArrowRight className="size-3.5" />
                 </span>

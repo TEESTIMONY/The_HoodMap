@@ -139,16 +139,16 @@ export default function LandingPage() {
                 href="/scan"
                 className="group inline-flex items-center gap-2.5 rounded-full bg-ink py-2 pl-6 pr-2 font-mono text-[14px] font-semibold text-canvas transition-colors hover:bg-white"
               >
-                Launch app
+                Scan Token
                 <span className="grid size-7 place-items-center rounded-full bg-lime text-canvas transition-transform group-hover:translate-x-0.5">
                   <ArrowRight className="size-4" />
                 </span>
               </Link>
               <Link
-                href="/scan"
+                href="/wallet"
                 className="inline-flex items-center rounded-full border border-line-strong bg-surface/40 px-6 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40"
               >
-                Live demo
+                Wallet Passport
               </Link>
             </div>
 
