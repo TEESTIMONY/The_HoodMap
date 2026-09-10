@@ -1,95 +1,140 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TokenSwap } from "@/lib/api";
 import { shortAddr, since, tokenAmount, usdCompact } from "@/lib/format";
-import { CopyButton } from "@/components/ui/copy-button";
 
-const COLS = "grid-cols-[56px_58px_minmax(84px,1fr)_minmax(74px,0.9fr)_minmax(116px,1.1fr)_34px]";
+const EXPLORER_TX = "https://explorer.mainnet.chain.robinhood.com/tx/";
+
+const SIDE_BADGE: Record<TokenSwap["side"], string> = {
+  buy: "text-success bg-success/10",
+  sell: "text-danger bg-danger/10",
+};
+const SIDE_ICON = { buy: ArrowUpRight, sell: ArrowDownRight } as const;
+const AMOUNT_COLOR: Record<TokenSwap["side"], string> = {
+  buy: "text-success",
+  sell: "text-danger",
+};
+
+// A swap moves the token pool <-> maker. On a buy the token leaves the pool for
+// the maker; on a sell it goes the other way. That orientation is the closest
+// thing we have to the transfer's from / to.
+function legs(s: TokenSwap): { from: string; to: string } {
+  return s.side === "buy"
+    ? { from: s.pool_address, to: s.wallet_address }
+    : { from: s.wallet_address, to: s.pool_address };
+}
+
+const DIVIDER = "shadow-[inset_1px_0_0_rgba(255,255,255,0.16)]";
 
 export function TxFeed({
   swaps,
   decimals,
   loading,
+  expanded = false,
 }: {
   swaps: TokenSwap[];
   decimals: number | null;
   loading: boolean;
+  /** rendered inside a modal that owns the panel chrome + its own scroll */
+  expanded?: boolean;
 }) {
-  return (
-    <div className="overflow-x-auto">
-      <div className="min-w-[520px] max-w-[920px]">
-        <div
-          className={cn(
-            "grid border-b border-line-strong px-1 py-2.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint",
-            COLS
-          )}
-        >
-          <div>Age</div>
-          <div>Type</div>
-          <div className="text-right">Amount</div>
-          <div className="text-right">USD</div>
-          <div className="text-right">Wallet</div>
-          <div />
-        </div>
+  if (!loading && swaps.length === 0) {
+    return (
+      <p className="px-1 py-12 text-center text-[13px] text-ink-faint">
+        No trades indexed for this token yet.
+      </p>
+    );
+  }
 
-        {loading ? (
-          Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className={cn("grid items-center border-b border-line px-1 py-3.5", COLS)}>
-              <span className="block h-3 w-9 animate-pulse rounded bg-surface-3" />
-              <span className="block h-3 w-9 animate-pulse rounded bg-surface-3" />
-              {Array.from({ length: 3 }).map((_, j) => (
-                <span key={j} className="ml-auto block h-3 w-12 animate-pulse rounded bg-surface-3" />
-              ))}
-              <span />
-            </div>
-          ))
-        ) : swaps.length === 0 ? (
-          <p className="px-1 py-12 text-center text-[13px] text-ink-muted">
-            No trades indexed for this token yet.
-          </p>
-        ) : (
-          swaps.map((s) => (
-            <div
-              key={s.transaction_hash + s.log_index}
-              className={cn(
-                "grid items-center border-b border-line px-1 py-3.5 text-[12px] last:border-0",
-                COLS
-              )}
-            >
-              <div className="font-mono text-ink-faint">{since(s.timestamp)}</div>
-              <div>
-                <span
-                  className={cn(
-                    "rounded px-1.5 py-0.5 font-mono text-[10px] uppercase",
-                    s.side === "buy" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-                  )}
+  const table = (
+    // min-w keeps columns from squashing on narrow screens — it scrolls instead
+    <table className="w-full min-w-[660px] max-w-[1200px] border-collapse text-sm">
+      <thead>
+        <tr className="sticky top-0 z-10 border-b border-line-strong text-left text-[11px] uppercase tracking-wide text-ink-faint">
+          <th className="bg-surface px-2 py-2.5 font-medium">Age</th>
+          {["Type", "Amount", "USD", "From", "To"].map((h) => (
+            <th key={h} className={cn("bg-surface px-2 py-2.5 text-right font-medium", DIVIDER)}>
+              {h}
+            </th>
+          ))}
+          <th className={cn("bg-surface px-4 py-2.5 text-right font-medium", DIVIDER)}>Txn</th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <tr key={i} className="divide-x divide-line-strong border-b border-line-strong">
+                {Array.from({ length: 7 }).map((__, j) => (
+                  <td key={j} className={cn("px-2 py-3", j === 6 && "px-4")}>
+                    <span
+                      className={cn(
+                        "block h-3 animate-pulse rounded bg-surface-3",
+                        j === 0 ? "w-12" : "ml-auto w-14"
+                      )}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))
+          : swaps.map((s) => {
+              const { from, to } = legs(s);
+              const Icon = SIDE_ICON[s.side];
+              return (
+                <tr
+                  key={`${s.transaction_hash}-${s.log_index}`}
+                  className="divide-x divide-line-strong border-b border-line-strong transition last:border-b-0 hover:bg-white/[0.02]"
                 >
-                  {s.side}
-                </span>
-              </div>
-              <div className="tabular text-right font-mono text-ink">
-                {tokenAmount(s.token_amount, decimals)}
-              </div>
-              <div className="tabular text-right font-mono text-ink-muted">
-                {usdCompact(s.usd_value)}
-              </div>
-              <div className="flex items-center justify-end gap-1 font-mono text-ink-muted">
-                <span>{shortAddr(s.wallet_address)}</span>
-                <CopyButton value={s.wallet_address} label="wallet" />
-              </div>
-              <a
-                href={`https://blockscout.chain.robinhood.com/tx/${s.transaction_hash}`}
-                target="_blank"
-                rel="noreferrer"
-                aria-label="View transaction"
-                className="justify-self-end text-ink-faint transition-colors hover:text-lime"
-              >
-                <ArrowUpRight className="size-3.5" />
-              </a>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+                  <td className="whitespace-nowrap px-2 py-2.5 font-mono text-[12px] text-ink-faint">
+                    {since(s.timestamp)} ago
+                  </td>
+                  <td className="px-2 py-2.5 text-right">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                        SIDE_BADGE[s.side]
+                      )}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {s.side}
+                    </span>
+                  </td>
+                  <td
+                    className={cn(
+                      "tabular px-2 py-2.5 text-right font-mono text-[12px]",
+                      AMOUNT_COLOR[s.side]
+                    )}
+                  >
+                    {tokenAmount(s.token_amount, decimals)}
+                  </td>
+                  <td className="tabular px-2 py-2.5 text-right font-mono text-[12px] text-ink-muted">
+                    {usdCompact(s.usd_value)}
+                  </td>
+                  <td className="px-2 py-2.5 text-right font-mono text-[12px] text-ink-muted">
+                    {shortAddr(from)}
+                  </td>
+                  <td className="px-2 py-2.5 text-right font-mono text-[12px] text-ink-muted">
+                    {shortAddr(to)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <a
+                      href={EXPLORER_TX + s.transaction_hash}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="View transaction on the block explorer"
+                      className="inline-flex text-ink-faint transition hover:text-lime-soft"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </td>
+                </tr>
+              );
+            })}
+      </tbody>
+    </table>
   );
+
+  if (expanded) return <div className="overflow-x-auto">{table}</div>;
+
+  // ~6 rows then scroll; the cap is header + 6 rows so it never clips mid-row
+  return <div className="max-h-[292px] overflow-auto">{table}</div>;
 }

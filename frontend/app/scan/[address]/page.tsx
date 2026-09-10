@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpRight, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Maximize2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
 import { Footerdemo } from "@/components/ui/footer-section";
@@ -13,6 +13,7 @@ import { DexChart } from "@/components/scan/dex-chart";
 import { MarketStats } from "@/components/scan/market-stats";
 import { HoodScoreCard } from "@/components/scan/hoodscore-card";
 import { TxFeed } from "@/components/scan/tx-feed";
+import { Modal } from "@/components/ui/modal";
 import {
   fetchToken,
   fetchTokenReport,
@@ -76,6 +77,7 @@ export default function TokenScanPage() {
   const [state, setState] = useState<State>("loading");
   const [swapsLoading, setSwapsLoading] = useState(true);
   const [tab, setTab] = useState<"transactions" | "summary">("transactions");
+  const [txModal, setTxModal] = useState(false);
 
   useEffect(() => {
     if (!address) return;
@@ -187,22 +189,37 @@ export default function TokenScanPage() {
                 <DexChart pools={report?.pools ?? []} />
 
                 <div className="rounded-2xl border border-line bg-surface/40">
-                  <div className="flex gap-1 border-b border-line px-3 pt-3">
+                  <div className="flex items-center gap-1 border-b border-line px-3 pt-3">
                     {(["transactions", "summary"] as const).map((k) => (
                       <button
                         key={k}
                         type="button"
                         onClick={() => setTab(k)}
                         className={cn(
-                          "rounded-t-lg px-3 py-2 font-mono text-[12px] uppercase tracking-wide transition-colors",
+                          "flex items-center gap-1.5 rounded-t-lg px-3 py-2 font-mono text-[12px] uppercase tracking-wide transition-colors",
                           tab === k
                             ? "border-b-2 border-lime text-ink"
                             : "text-ink-faint hover:text-ink-muted"
                         )}
                       >
                         {k === "transactions" ? "Transactions" : "Summary"}
+                        {k === "transactions" && swaps.length > 0 && (
+                          <span className="rounded-full bg-surface-3 px-1.5 py-px text-[10px] text-ink-muted">
+                            {swaps.length}
+                          </span>
+                        )}
                       </button>
                     ))}
+                    {tab === "transactions" && swaps.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTxModal(true)}
+                        aria-label="Expand full transaction list"
+                        className="ml-auto mb-1 rounded-lg p-1.5 text-ink-faint transition-colors hover:text-ink"
+                      >
+                        <Maximize2 className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div className="p-3">
                     {tab === "transactions" ? (
@@ -226,6 +243,12 @@ export default function TokenScanPage() {
           </>
         )}
       </div>
+
+      {txModal && (
+        <Modal title="Transactions" onClose={() => setTxModal(false)}>
+          <TxFeed swaps={swaps} decimals={t?.decimals ?? null} loading={swapsLoading} expanded />
+        </Modal>
+      )}
 
       <Footerdemo />
     </main>
