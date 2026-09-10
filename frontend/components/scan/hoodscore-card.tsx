@@ -19,7 +19,7 @@ const GRADE_LABEL: Record<string, string> = {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-line bg-canvas px-2 py-2 text-center">
+    <div className="rounded border border-line bg-canvas px-1.5 py-1.5 text-center">
       <p className="tabular font-mono text-[13px] text-ink">{value}</p>
       <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-ink-faint">{label}</p>
     </div>
@@ -32,9 +32,9 @@ export function HoodScoreCard({ report }: { report: TokenReport | null }) {
 
   if (!hs) {
     return (
-      <div className="rounded-2xl border border-line bg-surface/40 p-5">
-        <p className="font-mono text-[12px] uppercase tracking-widest text-ink-faint">HoodScore</p>
-        <p className="mt-3 text-[13px] text-ink-muted">
+      <div className="rounded-md border border-line bg-surface/40 p-2.5">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-ink-faint">HoodScore</p>
+        <p className="mt-2 text-[13px] text-ink-muted">
           {report?.note ?? "Not enough transfer data indexed to grade this token yet."}
         </p>
       </div>
@@ -47,12 +47,12 @@ export function HoodScoreCard({ report }: { report: TokenReport | null }) {
   const filled = circ * (hs.score / 100);
 
   return (
-    <div className="rounded-2xl border border-line bg-surface/40 p-5">
-      <p className="font-mono text-[12px] uppercase tracking-widest text-ink-faint">HoodScore</p>
+    <div className="rounded-md border border-line bg-surface/40 p-2.5">
+      <p className="font-mono text-[11px] uppercase tracking-widest text-ink-faint">HoodScore</p>
 
-      <div className="mt-4 flex flex-col items-center">
+      <div className="mt-2 flex flex-col items-center">
         <div className="relative">
-          <svg width="148" height="148" viewBox="0 0 148 148" className="-rotate-90">
+          <svg width="132" height="132" viewBox="0 0 148 148" className="-rotate-90">
             <circle cx="74" cy="74" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="9" />
             <circle
               cx="74"
@@ -73,18 +73,18 @@ export function HoodScoreCard({ report }: { report: TokenReport | null }) {
             <span className="mt-1 font-mono text-[11px] text-ink-faint">{hs.score} / 100</span>
           </div>
         </div>
-        <p className="mt-2 font-mono text-[13px] font-semibold text-ink">{GRADE_LABEL[hs.grade]}</p>
+        <p className="mt-1.5 font-mono text-[13px] font-semibold text-ink">{GRADE_LABEL[hs.grade]}</p>
       </div>
 
       {h && (
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
           <Metric label="Largest" value={`${h.top1_pct.toFixed(1)}%`} />
           <Metric label="Top 10" value={`${h.top10_pct.toFixed(1)}%`} />
           <Metric label="In pools" value={`${h.pool_pct.toFixed(1)}%`} />
         </div>
       )}
 
-      <ul className="mt-4 space-y-1.5">
+      <ul className="mt-2.5 space-y-1">
         {hs.reasons.map((rsn, i) => (
           <li key={i} className="flex gap-2 text-[12px] leading-snug text-ink-muted">
             <span
@@ -96,7 +96,7 @@ export function HoodScoreCard({ report }: { report: TokenReport | null }) {
         ))}
       </ul>
 
-      {report?.note && <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">{report.note}</p>}
+      {report?.note && <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">{report.note}</p>}
     </div>
   );
 }

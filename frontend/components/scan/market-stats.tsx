@@ -25,11 +25,11 @@ export function MarketStats({ t }: { t: TokenDetail }) {
   ];
 
   return (
-    <div className="rounded-2xl border border-line bg-surface/40 p-5">
-      <p className="font-mono text-[12px] uppercase tracking-widest text-ink-faint">Market stats</p>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="rounded-md border border-line bg-surface/40 p-2.5">
+      <p className="font-mono text-[11px] uppercase tracking-widest text-ink-faint">Market stats</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
         {cells.map((c) => (
-          <div key={c.label} className="rounded-lg border border-line bg-canvas px-2.5 py-2">
+          <div key={c.label} className="rounded border border-line bg-canvas px-2 py-1.5">
             <p
               className={
                 "tabular truncate font-mono text-[13px] " + (c.accent ? "text-lime" : "text-ink")

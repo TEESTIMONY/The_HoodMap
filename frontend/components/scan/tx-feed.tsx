@@ -51,13 +51,13 @@ export function TxFeed({
     <table className="w-full min-w-[660px] max-w-[1200px] border-collapse text-sm">
       <thead>
         <tr className="sticky top-0 z-10 border-b border-line-strong text-left text-[11px] uppercase tracking-wide text-ink-faint">
-          <th className="bg-surface px-2 py-2.5 font-medium">Age</th>
+          <th className="bg-surface px-2 py-1.5 font-medium">Age</th>
           {["Type", "Amount", "USD", "From", "To"].map((h) => (
-            <th key={h} className={cn("bg-surface px-2 py-2.5 text-right font-medium", DIVIDER)}>
+            <th key={h} className={cn("bg-surface px-2 py-1.5 text-right font-medium", DIVIDER)}>
               {h}
             </th>
           ))}
-          <th className={cn("bg-surface px-4 py-2.5 text-right font-medium", DIVIDER)}>Txn</th>
+          <th className={cn("bg-surface px-4 py-1.5 text-right font-medium", DIVIDER)}>Txn</th>
         </tr>
       </thead>
       <tbody>
@@ -65,7 +65,7 @@ export function TxFeed({
           ? Array.from({ length: 6 }).map((_, i) => (
               <tr key={i} className="divide-x divide-line-strong border-b border-line-strong">
                 {Array.from({ length: 7 }).map((__, j) => (
-                  <td key={j} className={cn("px-2 py-3", j === 6 && "px-4")}>
+                  <td key={j} className={cn("px-2 py-2", j === 6 && "px-4")}>
                     <span
                       className={cn(
                         "block h-3 animate-pulse rounded bg-surface-3",
@@ -84,10 +84,10 @@ export function TxFeed({
                   key={`${s.transaction_hash}-${s.log_index}`}
                   className="divide-x divide-line-strong border-b border-line-strong transition last:border-b-0 hover:bg-white/[0.02]"
                 >
-                  <td className="whitespace-nowrap px-2 py-2.5 font-mono text-[12px] text-ink-faint">
+                  <td className="whitespace-nowrap px-2 py-1.5 font-mono text-[12px] text-ink-faint">
                     {since(s.timestamp)} ago
                   </td>
-                  <td className="px-2 py-2.5 text-right">
+                  <td className="px-2 py-1.5 text-right">
                     <span
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
@@ -100,22 +100,22 @@ export function TxFeed({
                   </td>
                   <td
                     className={cn(
-                      "tabular px-2 py-2.5 text-right font-mono text-[12px]",
+                      "tabular px-2 py-1.5 text-right font-mono text-[12px]",
                       AMOUNT_COLOR[s.side]
                     )}
                   >
                     {tokenAmount(s.token_amount, decimals)}
                   </td>
-                  <td className="tabular px-2 py-2.5 text-right font-mono text-[12px] text-ink-muted">
+                  <td className="tabular px-2 py-1.5 text-right font-mono text-[12px] text-ink-muted">
                     {usdCompact(s.usd_value)}
                   </td>
-                  <td className="px-2 py-2.5 text-right font-mono text-[12px] text-ink-muted">
+                  <td className="px-2 py-1.5 text-right font-mono text-[12px] text-ink-muted">
                     {shortAddr(from)}
                   </td>
-                  <td className="px-2 py-2.5 text-right font-mono text-[12px] text-ink-muted">
+                  <td className="px-2 py-1.5 text-right font-mono text-[12px] text-ink-muted">
                     {shortAddr(to)}
                   </td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-4 py-1.5 text-right">
                     <a
                       href={EXPLORER_TX + s.transaction_hash}
                       target="_blank"
@@ -135,6 +135,9 @@ export function TxFeed({
 
   if (expanded) return <div className="overflow-x-auto">{table}</div>;
 
-  // ~6 rows then scroll; the cap is header + 6 rows so it never clips mid-row
-  return <div className="max-h-[292px] overflow-auto">{table}</div>;
+  // mobile: cap at ~6 rows and scroll inside this box.
+  // lg: the pinned layout's panel is the scroll owner, so let content flow.
+  return (
+    <div className="max-h-[300px] overflow-auto lg:max-h-none lg:overflow-visible">{table}</div>
+  );
 }

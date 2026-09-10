@@ -43,7 +43,7 @@ function SummaryPanel({ report }: { report: TokenReport | null }) {
       </p>
       <div className="divide-y divide-line">
         {top.map((h, i) => (
-          <div key={h.address} className="flex items-center gap-2.5 py-2.5 text-[12px]">
+          <div key={h.address} className="flex items-center gap-2.5 py-1.5 text-[12px]">
             <span className="w-4 text-center font-mono text-ink-faint">{i + 1}</span>
             <span className="font-mono text-ink-muted">{shortAddr(h.address)}</span>
             <CopyButton value={h.address} label="address" />
@@ -75,7 +75,7 @@ export default function TokenScanPage() {
   const [report, setReport] = useState<TokenReport | null>(null);
   const [state, setState] = useState<State>("loading");
   const [swapsLoading, setSwapsLoading] = useState(true);
-  const [tab, setTab] = useState<"transactions" | "summary">("transactions");
+  const [tab, setTab] = useState<"transactions" | "summary" | "chart">("transactions");
   const [txModal, setTxModal] = useState(false);
 
   useEffect(() => {
@@ -111,38 +111,57 @@ export default function TokenScanPage() {
   }, [address]);
 
   const sym = (t?.symbol || "?").toUpperCase();
+  // desktop: pin the whole result to the viewport, only the right column scrolls
+  const pinned = state === "ready";
 
   return (
-    <main className="relative min-h-[100svh] bg-canvas">
+    <main
+      className={cn(
+        "relative bg-canvas",
+        pinned ? "lg:h-screen lg:overflow-hidden" : "min-h-[100svh]"
+      )}
+    >
       <SiteNav />
 
-      <div className="mx-auto w-full max-w-[1760px] px-4 pb-24 pt-28 sm:px-6 sm:pt-32 lg:px-10">
-        <ScanInput className="max-w-none" />
+      <div
+        className={cn(
+          "mx-auto w-full max-w-[1760px] px-2 pb-8 pt-[76px] sm:px-3 sm:pt-20",
+          pinned && "lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:pb-2 lg:pt-[70px]"
+        )}
+      >
+        <div className={pinned ? "lg:shrink-0" : undefined}>
+          <ScanInput className="max-w-none" />
+        </div>
 
         {state === "invalid" && (
-          <p className="mt-8 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 font-mono text-[13px] text-danger">
+          <p className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[13px] text-danger">
             That doesn&apos;t look like a contract address.
           </p>
         )}
 
         {state === "notfound" && (
-          <div className="mt-8 rounded-2xl border border-line bg-surface/40 px-5 py-10 text-center">
+          <div className="mt-3 rounded-md border border-line bg-surface/40 px-4 py-8 text-center">
             <p className="font-mono text-[14px] text-ink">Not an ERC-20 on Robinhood Chain</p>
             <p className="mt-2 font-mono text-[12px] text-ink-faint">{shortAddr(address)}</p>
           </div>
         )}
 
         {state === "error" && (
-          <p className="mt-8 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 font-mono text-[13px] text-danger">
+          <p className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[13px] text-danger">
             Couldn&apos;t reach the analytics API. Start it and refresh.
           </p>
         )}
 
         {(state === "loading" || state === "ready") && (
-          <>
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+          <div
+            className={cn(
+              "mt-3 flex flex-col gap-2",
+              pinned && "lg:min-h-0 lg:flex-1 lg:overflow-hidden"
+            )}
+          >
+            <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
               <span
-                className="grid size-11 shrink-0 place-items-center rounded-full text-[15px] font-bold text-white"
+                className="grid size-9 shrink-0 place-items-center rounded-md text-[14px] font-bold text-white"
                 style={{ backgroundColor: monogramColor(sym) }}
               >
                 {state === "loading" ? "" : sym.slice(0, 1)}
@@ -150,9 +169,9 @@ export default function TokenScanPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   {state === "loading" ? (
-                    <span className="my-1 block h-6 w-28 animate-pulse rounded bg-surface-3" />
+                    <span className="my-1 block h-5 w-24 animate-pulse rounded bg-surface-3" />
                   ) : (
-                    <h1 className="font-display text-2xl font-bold uppercase text-ink sm:text-3xl">
+                    <h1 className="font-display text-xl font-bold uppercase text-ink sm:text-2xl">
                       {sym}
                     </h1>
                   )}
@@ -176,26 +195,46 @@ export default function TokenScanPage() {
                 href={`https://dexscreener.com/robinhood/${address}`}
                 target="_blank"
                 rel="noreferrer"
-                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3.5 py-2 font-mono text-[12px] text-ink-muted transition-colors hover:text-ink"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line-strong px-2.5 py-1.5 font-mono text-[12px] text-ink-muted transition-colors hover:text-ink"
               >
                 DexScreener
                 <ArrowUpRight className="size-3.5" />
               </a>
             </div>
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-              <div className="order-2 flex min-w-0 flex-col gap-5 lg:order-1">
-                <DexChart pools={report?.pools ?? []} />
+            <div
+              className={cn(
+                "grid gap-2 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]",
+                pinned && "lg:min-h-0 lg:flex-1 lg:overflow-hidden"
+              )}
+            >
+              {/* left — chart + tabs + table; never its own scrollbar */}
+              <div className="order-2 flex min-w-0 flex-col gap-2 lg:order-1 lg:min-h-0">
+                <div className="hidden lg:block lg:shrink-0">
+                  <DexChart pools={report?.pools ?? []} />
+                </div>
 
-                <div className="rounded-2xl border border-line bg-surface/40">
-                  <div className="flex items-center gap-1 border-b border-line px-3 pt-3">
+                <div className="rounded-md border border-line bg-surface/40 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+                  <div className="flex items-center gap-1 border-b border-line px-2 pt-1.5 lg:shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setTab("chart")}
+                      className={cn(
+                        "rounded-t px-2.5 py-1.5 font-mono text-[12px] uppercase tracking-wide transition-colors lg:hidden",
+                        tab === "chart"
+                          ? "border-b-2 border-lime text-ink"
+                          : "text-ink-faint hover:text-ink-muted"
+                      )}
+                    >
+                      Chart
+                    </button>
                     {(["transactions", "summary"] as const).map((k) => (
                       <button
                         key={k}
                         type="button"
                         onClick={() => setTab(k)}
                         className={cn(
-                          "flex items-center gap-1.5 rounded-t-lg px-3 py-2 font-mono text-[12px] uppercase tracking-wide transition-colors",
+                          "flex items-center gap-1.5 rounded-t px-2.5 py-1.5 font-mono text-[12px] uppercase tracking-wide transition-colors",
                           tab === k
                             ? "border-b-2 border-lime text-ink"
                             : "text-ink-faint hover:text-ink-muted"
@@ -214,32 +253,37 @@ export default function TokenScanPage() {
                         type="button"
                         onClick={() => setTxModal(true)}
                         aria-label="Expand full transaction list"
-                        className="ml-auto mb-1 rounded-lg p-1.5 text-ink-faint transition-colors hover:text-ink"
+                        className="ml-auto mb-1 rounded p-1 text-ink-faint transition-colors hover:text-ink"
                       >
                         <Maximize2 className="size-3.5" />
                       </button>
                     )}
                   </div>
-                  <div className="p-3">
-                    {tab === "transactions" ? (
-                      <TxFeed swaps={swaps} decimals={t?.decimals ?? null} loading={swapsLoading} />
-                    ) : (
-                      <SummaryPanel report={report} />
+                  <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-auto">
+                    {tab === "chart" && (
+                      <div className="lg:hidden">
+                        <DexChart pools={report?.pools ?? []} />
+                      </div>
                     )}
+                    {tab === "transactions" && (
+                      <TxFeed swaps={swaps} decimals={t?.decimals ?? null} loading={swapsLoading} />
+                    )}
+                    {tab === "summary" && <SummaryPanel report={report} />}
                   </div>
                 </div>
               </div>
 
-              <div className="order-1 flex flex-col gap-5 lg:order-2">
+              {/* right — the one scroll region on desktop */}
+              <div className="order-1 flex flex-col gap-2 lg:order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
                 {t ? (
                   <MarketStats t={t} />
                 ) : (
-                  <div className="h-64 animate-pulse rounded-2xl border border-line bg-surface/40" />
+                  <div className="h-56 animate-pulse rounded-md border border-line bg-surface/40" />
                 )}
                 <HoodScoreCard report={report} />
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
 

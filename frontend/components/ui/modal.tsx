@@ -32,7 +32,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-line-strong bg-surface shadow-[0_40px_120px_-24px_rgba(0,0,0,0.9)]"
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-line-strong bg-surface shadow-[0_40px_120px_-24px_rgba(0,0,0,0.9)]"
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <h2 className="font-mono text-[13px] uppercase tracking-wide text-ink">{title}</h2>
