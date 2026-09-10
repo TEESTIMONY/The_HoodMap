@@ -155,53 +155,10 @@ export default function TokenScanPage() {
         {(state === "loading" || state === "ready") && (
           <div
             className={cn(
-              "mt-3 flex flex-col gap-2",
+              "mt-2 flex flex-col gap-2",
               pinned && "lg:min-h-0 lg:flex-1 lg:overflow-hidden"
             )}
           >
-            <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-              <span
-                className="grid size-9 shrink-0 place-items-center rounded-md text-[14px] font-bold text-white"
-                style={{ backgroundColor: monogramColor(sym) }}
-              >
-                {state === "loading" ? "" : sym.slice(0, 1)}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  {state === "loading" ? (
-                    <span className="my-1 block h-5 w-24 animate-pulse rounded bg-surface-3" />
-                  ) : (
-                    <h1 className="font-display text-xl font-bold uppercase text-ink sm:text-2xl">
-                      {sym}
-                    </h1>
-                  )}
-                  {t?.name && (
-                    <span className="truncate font-mono text-[13px] text-ink-faint">({t.name})</span>
-                  )}
-                  {t?.verified && <ShieldCheck className="size-4 shrink-0 text-lime" />}
-                </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[12px] text-ink-faint">
-                  <span>{shortAddr(address)}</span>
-                  <CopyButton value={address} label="contract address" />
-                  {t?.first_seen && <span>· seen {since(t.first_seen)}</span>}
-                  {t?.token_type && t.token_type !== "unknown" && (
-                    <span className="rounded bg-surface-3 px-1 py-px uppercase">
-                      {t.token_type.replace(/_/g, " ")}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <a
-                href={`https://dexscreener.com/robinhood/${address}`}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line-strong px-2.5 py-1.5 font-mono text-[12px] text-ink-muted transition-colors hover:text-ink"
-              >
-                DexScreener
-                <ArrowUpRight className="size-3.5" />
-              </a>
-            </div>
-
             <div
               className={cn(
                 "grid gap-2 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]",
@@ -273,14 +230,61 @@ export default function TokenScanPage() {
                 </div>
               </div>
 
-              {/* right — the one scroll region on desktop */}
-              <div className="order-1 flex flex-col gap-2 lg:order-2 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-                {t ? (
-                  <MarketStats t={t} />
-                ) : (
-                  <div className="h-56 animate-pulse rounded-md border border-line bg-surface/40" />
-                )}
-                <HoodScoreCard report={report} />
+              {/* right — token identity (pinned) + the one scroll region */}
+              <div className="order-1 flex flex-col gap-2 lg:order-2 lg:h-full lg:min-h-0">
+                <div className="flex items-start gap-2 lg:shrink-0">
+                  <span
+                    className="grid size-9 shrink-0 place-items-center rounded-md text-[14px] font-bold text-white"
+                    style={{ backgroundColor: monogramColor(sym) }}
+                  >
+                    {state === "loading" ? "" : sym.slice(0, 1)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      {state === "loading" ? (
+                        <span className="my-1 block h-5 w-24 animate-pulse rounded bg-surface-3" />
+                      ) : (
+                        <h1 className="truncate font-display text-lg font-bold uppercase text-ink">
+                          {sym}
+                        </h1>
+                      )}
+                      {t?.name && (
+                        <span className="truncate font-mono text-[12px] text-ink-faint">
+                          {t.name}
+                        </span>
+                      )}
+                      {t?.verified && <ShieldCheck className="size-4 shrink-0 text-lime" />}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-ink-faint">
+                      <span>{shortAddr(address)}</span>
+                      <CopyButton value={address} label="contract address" />
+                      {t?.first_seen && <span>· {since(t.first_seen)}</span>}
+                      {t?.token_type && t.token_type !== "unknown" && (
+                        <span className="rounded bg-surface-3 px-1 py-px uppercase">
+                          {t.token_type.replace(/_/g, " ")}
+                        </span>
+                      )}
+                      <a
+                        href={`https://dexscreener.com/robinhood/${address}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-ink-muted transition-colors hover:text-ink"
+                      >
+                        DexScreener
+                        <ArrowUpRight className="size-3" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+                  {t ? (
+                    <MarketStats t={t} />
+                  ) : (
+                    <div className="h-56 animate-pulse rounded-md border border-line bg-surface/40" />
+                  )}
+                  <HoodScoreCard report={report} />
+                </div>
               </div>
             </div>
           </div>
