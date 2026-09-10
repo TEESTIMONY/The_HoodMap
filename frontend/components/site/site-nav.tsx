@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   ChevronDown,
-  FileText,
   Flame,
   Menu,
   Radar,
@@ -129,21 +128,21 @@ export function SiteNav() {
               )
             )}
             <Link
-              href="/scan"
+              href="/whitepaper"
               className="ml-1 rounded-full border border-line-strong px-3 py-1.5 text-ink-muted transition-colors hover:text-ink"
             >
-              Login / Register
+              Whitepaper
             </Link>
         </nav>
 
-        {/* right — whitepaper + CTAs */}
+        {/* right — trending + CTAs */}
         <div className="col-start-3 flex items-center justify-self-end gap-1.5 sm:gap-2">
           <Link
-            href="/whitepaper"
+            href="/trending"
             className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"
           >
-            <FileText className="size-3.5" />
-            Whitepaper
+            <Flame className="size-3.5" />
+            Trending
           </Link>
 
           <Link
@@ -201,7 +200,11 @@ export function SiteNav() {
             <p className="px-3 pb-1 pt-5 font-mono text-[11px] uppercase tracking-widest text-ink-faint">
               More
             </p>
-            {[...LINKS.filter((l) => !l.dropdown), { label: "Whitepaper", href: "/whitepaper" }].map(
+            {[
+              ...LINKS.filter((l) => !l.dropdown),
+              { label: "Trending", href: "/trending" },
+              { label: "Whitepaper", href: "/whitepaper" },
+            ].map(
               (l) => (
                 <Link
                   key={l.label}
