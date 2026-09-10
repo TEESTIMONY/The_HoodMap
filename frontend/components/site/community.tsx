@@ -1,6 +1,7 @@
-import { Send, Twitter } from "lucide-react";
+import { Send } from "lucide-react";
 import { HoodMark } from "@/components/site/logo";
 import { HexField } from "@/components/site/hex-field";
+import { XIcon } from "@/components/site/x-icon";
 
 /**
  * Closing "join us" beat over a drifting hash field, echoing the reference:
@@ -21,10 +22,10 @@ export function Community() {
           </div>
         </div>
 
-        <h2 className="mt-7 font-display text-[2rem] font-normal leading-[1.1] text-ink [text-shadow:0_0_36px_rgba(23,176,74,0.3)] sm:text-[2.6rem]">
+        <h2 className="mt-7 font-display text-[2.4rem] font-normal leading-[1.05] text-ink [text-shadow:0_0_36px_rgba(23,176,74,0.3)] sm:text-[3.25rem]">
           Join our communities
         </h2>
-        <p className="mt-4 max-w-md text-[15px] leading-relaxed text-ink-muted">
+        <p className="mt-5 max-w-lg text-[17px] leading-relaxed text-ink-muted sm:text-lg">
           New clusters, HoodScore changes, and whales on the move, called out as they happen.
         </p>
 
@@ -33,16 +34,16 @@ export function Community() {
             href="https://x.com"
             target="_blank"
             rel="noreferrer"
-            className="group inline-flex items-center gap-2.5 rounded-full border border-line-strong bg-surface/60 px-5 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40 hover:text-lime"
+            className="inline-flex items-center gap-2.5 rounded-full border border-line-strong bg-surface/60 px-5 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40 hover:text-lime"
           >
-            <Twitter className="size-4" strokeWidth={1.75} />
+            <XIcon className="size-[15px]" />
             Follow on X
           </a>
           <a
             href="https://t.me"
             target="_blank"
             rel="noreferrer"
-            className="group inline-flex items-center gap-2.5 rounded-full border border-line-strong bg-surface/60 px-5 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40 hover:text-lime"
+            className="inline-flex items-center gap-2.5 rounded-full border border-line-strong bg-surface/60 px-5 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40 hover:text-lime"
           >
             <Send className="size-4" strokeWidth={1.75} />
             Join Telegram

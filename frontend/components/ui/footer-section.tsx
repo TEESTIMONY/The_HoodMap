@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Github, MessageCircle, Send, Twitter } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Github, MessageCircle, Send } from "lucide-react";
 import { HoodWordmark } from "@/components/site/logo";
+import { XIcon } from "@/components/site/x-icon";
 
 /**
  * Site footer — a 4-column layout (notify · product · company · social) over a
@@ -27,8 +27,12 @@ const COMPANY_LINKS = [
   { label: "Careers", href: "/careers" },
 ];
 
-const SOCIALS: { icon: LucideIcon; href: string; label: string }[] = [
-  { icon: Twitter, href: "https://x.com", label: "Follow us on X" },
+const SOCIALS: {
+  icon: React.ComponentType<{ className?: string }>;
+  href: string;
+  label: string;
+}[] = [
+  { icon: XIcon, href: "https://x.com", label: "Follow us on X" },
   { icon: Send, href: "https://t.me", label: "Join us on Telegram" },
   { icon: MessageCircle, href: "https://discord.com", label: "Chat on Discord" },
   { icon: Github, href: "https://github.com", label: "Source on GitHub" },

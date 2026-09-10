@@ -7,7 +7,6 @@ import {
   Check,
   Clock,
   Info,
-  Twitter,
   Send,
   Github,
   MessageCircle,
@@ -16,6 +15,7 @@ import { GatewayFlow } from "@/components/ui/gateway-flow";
 import { Footerdemo } from "@/components/ui/footer-section";
 import type { CarouselItem } from "@/components/ui/ruler-carousel";
 import { HoodMark } from "@/components/site/logo";
+import { XIcon } from "@/components/site/x-icon";
 import { SiteNav } from "@/components/site/site-nav";
 import { CookieBar } from "@/components/site/cookie-bar";
 import { HeroDecor } from "@/components/site/hero-decor";
@@ -32,7 +32,7 @@ const HERO_CHIPS = [
 ];
 
 const SOCIALS = [
-  { icon: Twitter, href: "https://x.com", label: "X" },
+  { icon: XIcon, href: "https://x.com", label: "X" },
   { icon: Send, href: "https://t.me", label: "Telegram" },
   { icon: MessageCircle, href: "https://discord.com", label: "Discord" },
   { icon: Github, href: "https://github.com", label: "GitHub" },

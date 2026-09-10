@@ -22,9 +22,9 @@ export function HexField() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 overflow-hidden [mask-image:radial-gradient(62%_64%_at_50%_50%,#000_0%,transparent_80%)]"
+      className="pointer-events-none absolute inset-0 overflow-hidden [mask-composite:intersect] [-webkit-mask-composite:source-in] [mask-image:linear-gradient(90deg,#000,#0000_38%,#0000_62%,#000),linear-gradient(#0000,#000_14%,#000_86%,#0000)]"
     >
-      <div className="animate-hex-drift absolute inset-x-0 top-0 flex flex-col gap-1.5 whitespace-pre text-center font-mono text-[11px] leading-[1.7] tracking-wide text-lime/[0.1]">
+      <div className="animate-hex-drift absolute inset-x-0 top-0 flex flex-col gap-1.5 whitespace-pre text-center font-mono text-[11px] leading-[1.7] tracking-wide text-lime/[0.12]">
         {[...rows, ...rows].map((l, i) => (
           <div key={i}>{l}</div>
         ))}
