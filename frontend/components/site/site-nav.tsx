@@ -59,14 +59,14 @@ export function SiteNav() {
           : "border-b border-transparent"
       )}
     >
-      <div className="relative z-50 mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        {/* left — logo + grouped links */}
-        <div className="flex items-center gap-3">
-          <Link href="/" aria-label="HoodMap home">
-            <HoodWordmark />
-          </Link>
+      <div className="relative z-50 mx-auto grid w-full max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        {/* left — logo */}
+        <Link href="/" aria-label="HoodMap home" className="justify-self-start">
+          <HoodWordmark />
+        </Link>
 
-          <nav className="hidden items-center whitespace-nowrap rounded-full border border-line/70 bg-surface/40 p-1 font-mono text-[13px] backdrop-blur-md xl:flex">
+        {/* centre — grouped links */}
+        <nav className="col-start-2 hidden items-center whitespace-nowrap rounded-full border border-line/70 bg-surface/40 p-1 font-mono text-[13px] backdrop-blur-md xl:flex">
             {LINKS.map((l) =>
               l.dropdown ? (
                 <div
@@ -134,11 +134,10 @@ export function SiteNav() {
             >
               Login / Register
             </Link>
-          </nav>
-        </div>
+        </nav>
 
         {/* right — language + CTAs */}
-        <div className="flex items-center gap-2">
+        <div className="col-start-3 flex items-center justify-self-end gap-2">
           <button
             type="button"
             className="hidden items-center gap-1.5 rounded-full border border-line/70 bg-surface/40 px-3 py-2 font-mono text-[13px] text-ink-muted backdrop-blur-md transition-colors hover:text-ink xl:inline-flex"

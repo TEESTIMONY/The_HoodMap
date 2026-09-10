@@ -31,7 +31,7 @@ export function ScanInput({ className }: { className?: string }) {
       <form
         onSubmit={submit}
         className={cn(
-          "group flex items-center gap-2 rounded-2xl border bg-surface/80 p-2 backdrop-blur-md transition-colors",
+          "group flex items-center gap-2 rounded-full border bg-surface/80 p-1.5 pl-2 backdrop-blur-md transition-colors",
           error ? "border-danger/50" : "border-line-strong focus-within:border-lime/50"
         )}
       >
@@ -44,23 +44,23 @@ export function ScanInput({ className }: { className?: string }) {
           spellCheck={false}
           autoComplete="off"
           placeholder="Paste a Robinhood Chain contract or wallet (0x…)"
-          className="tabular min-w-0 flex-1 bg-transparent px-3 py-3.5 font-mono text-[16px] text-ink placeholder:text-ink-faint focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[12px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
         />
         <button
           type="submit"
-          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-lime px-5 py-3.5 font-mono text-[15px] font-semibold uppercase tracking-wide text-canvas transition-shadow hover:shadow-glow-lime-sm"
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-lime px-4 py-2 font-mono text-[12px] font-semibold text-canvas transition-shadow hover:shadow-glow-lime-sm"
         >
           Scan
-          <ArrowRight className="size-[18px]" />
+          <ArrowRight className="size-3.5" />
         </button>
       </form>
       <p
         className={cn(
-          "mt-3 min-h-[1.25rem] px-1 font-mono text-[13px]",
+          "mt-2.5 min-h-[1rem] px-3 text-[12px] leading-relaxed",
           error ? "text-danger" : "text-ink-faint"
         )}
       >
-        {error ?? "Reads raw transfer history straight from the chain — no login."}
+        {error ?? "Raw on-chain history — no login."}
       </p>
     </div>
   );
