@@ -1,7 +1,7 @@
 import { ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TokenSwap } from "@/lib/api";
-import { shortAddr, since, tokenAmount, usdCompact } from "@/lib/format";
+import { priceUsd, shortAddr, since, toNum, tokenAmount, usdCompact } from "@/lib/format";
 
 const EXPLORER_TX = "https://explorer.mainnet.chain.robinhood.com/tx/";
 
@@ -22,6 +22,15 @@ function legs(s: TokenSwap): { from: string; to: string } {
   return s.side === "buy"
     ? { from: s.pool_address, to: s.wallet_address }
     : { from: s.wallet_address, to: s.pool_address };
+}
+
+// Effective per-token price for this fill: trade USD / tokens moved.
+function fillPrice(s: TokenSwap, decimals: number | null): number | null {
+  const usd = toNum(s.usd_value);
+  const raw = toNum(s.token_amount);
+  if (usd === null || !raw) return null;
+  const tokens = raw / 10 ** (decimals ?? 18);
+  return tokens ? usd / tokens : null;
 }
 
 const DIVIDER = "shadow-[inset_1px_0_0_rgba(255,255,255,0.16)]";
@@ -48,11 +57,11 @@ export function TxFeed({
 
   const table = (
     // min-w keeps columns from squashing on narrow screens — it scrolls instead
-    <table className="w-full min-w-[660px] max-w-[1200px] border-collapse text-sm">
+    <table className="w-full min-w-[720px] max-w-[1240px] border-collapse text-sm">
       <thead>
         <tr className="sticky top-0 z-10 border-b border-line-strong text-left text-[11px] uppercase tracking-wide text-ink-faint">
           <th className="bg-surface px-2 py-1.5 font-medium">Age</th>
-          {["Type", "Amount", "USD", "From", "To"].map((h) => (
+          {["Type", "Amount", "Price", "USD", "From", "To"].map((h) => (
             <th key={h} className={cn("bg-surface px-2 py-1.5 text-right font-medium", DIVIDER)}>
               {h}
             </th>
@@ -64,8 +73,8 @@ export function TxFeed({
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
               <tr key={i} className="divide-x divide-line-strong border-b border-line-strong">
-                {Array.from({ length: 7 }).map((__, j) => (
-                  <td key={j} className={cn("px-2 py-2", j === 6 && "px-4")}>
+                {Array.from({ length: 8 }).map((__, j) => (
+                  <td key={j} className={cn("px-2 py-2", j === 7 && "px-4")}>
                     <span
                       className={cn(
                         "block h-3 animate-pulse rounded bg-surface-3",
@@ -105,6 +114,9 @@ export function TxFeed({
                     )}
                   >
                     {tokenAmount(s.token_amount, decimals)}
+                  </td>
+                  <td className="tabular whitespace-nowrap px-2 py-1.5 text-right font-mono text-[12px] text-ink">
+                    {priceUsd(fillPrice(s, decimals))}
                   </td>
                   <td className="tabular px-2 py-1.5 text-right font-mono text-[12px] text-ink-muted">
                     {usdCompact(s.usd_value)}
