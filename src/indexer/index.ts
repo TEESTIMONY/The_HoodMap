@@ -143,6 +143,26 @@ async function processBlockWithRetry(blockNumber: bigint): Promise<bigint> {
   }
 }
 
+// Startup dependencies (DB, RPC) can be briefly unreachable — a DNS blip, the
+// laptop waking from sleep, Supabase's pooler warming up. Unlike a bad block
+// (which has MAX_BLOCK_ATTEMPTS and gives up), there's nothing useful to do
+// without these, so retry with capped backoff instead of crashing the whole
+// `npm run dev` group over a few seconds of network flakiness.
+async function connectWithRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const backoffMs = Math.min(30_000, 1_000 * 2 ** (attempt - 1));
+      logger.warn(
+        { attempt, backoffMs, err: (err as Error).message },
+        `${label} failed, retrying`
+      );
+      await sleep(backoffMs);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   logger.info({ chainId: config.CHAIN_ID, chainName: config.CHAIN_NAME }, "indexer starting");
 
@@ -173,8 +193,8 @@ async function main(): Promise<void> {
   }, 20_000);
   metaSweep.unref?.();
 
-  const state = await getOrCreateIndexerState();
-  let cachedTip = await httpClient.getBlockNumber();
+  const state = await connectWithRetry(getOrCreateIndexerState, "fetch indexer checkpoint");
+  let cachedTip = await connectWithRetry(() => httpClient.getBlockNumber(), "fetch chain tip");
   let cursor =
     state.lastProcessedBlock > 0n ? state.lastProcessedBlock + 1n : cachedTip;
 
