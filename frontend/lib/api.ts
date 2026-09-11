@@ -113,3 +113,112 @@ export function fetchTokenSwaps(address: string, limit = 40, signal?: AbortSigna
 export function fetchTokenReport(address: string, signal?: AbortSignal) {
   return get<TokenReport>(`/api/v1/tokens/${address}/report`, { signal });
 }
+
+// ---- Wallet Passport ----
+
+export interface WalletSummary {
+  has_trades: boolean;
+  portfolio_value: string | null;
+  realized_pnl: string | null;
+  unrealized_pnl: string | null;
+  total_pnl: string | null;
+  total_trades: number | null;
+  winning_trades: number | null;
+  losing_trades: number | null;
+  win_rate: string | null;
+  total_volume: string | null;
+  buy_volume: string | null;
+  sell_volume: string | null;
+  best_trade_pnl: string | null;
+  worst_trade_pnl: string | null;
+  average_win: string | null;
+  average_loss: string | null;
+  roi: string | null;
+  tokens_traded: number | null;
+  open_positions: number | null;
+  closed_positions: number | null;
+  first_trade_at: string | null;
+  last_trade_at: string | null;
+  avg_holding_hours: string | null;
+  breakeven_trades: number | null;
+  pnl_confidence: "high" | "medium" | "low" | null;
+  unmatched_pnl: string | null;
+  zero_cost_positions: number | null;
+  indexed_through_block: string | null;
+  computed_at: string | null;
+}
+
+export interface WalletPosition {
+  token_address: string;
+  quantity: string;
+  average_cost: string;
+  cost_basis: string;
+  realized_pnl: string;
+  unrealized_pnl: string;
+  current_price: string | null;
+  current_value: string | null;
+  is_open: boolean;
+  buy_usd: string;
+  sell_usd: string;
+  first_buy_at: string | null;
+  last_activity_at: string | null;
+  symbol: string | null;
+  name: string | null;
+  decimals: number | null;
+  market_price: string | null;
+}
+
+export interface WalletTrade {
+  token_address: string;
+  side: "buy" | "sell";
+  quantity: string;
+  price: string | null;
+  usd_value: string | null;
+  cost_basis: string | null;
+  realized_pnl: string | null;
+  dex: string | null;
+  tx_hash: string;
+  timestamp: string;
+  symbol: string | null;
+  decimals: number | null;
+}
+
+export interface WalletTransaction {
+  hash: string;
+  block_number: string;
+  transaction_index: number;
+  from_address: string;
+  to_address: string | null;
+  value: string;
+  gas_used: string | null;
+  gas_price: string | null;
+  status: number | null;
+  timestamp: string;
+}
+
+export function fetchWallet(address: string, refresh = false, signal?: AbortSignal) {
+  return get<WalletSummary>(`/api/v1/wallets/${address}${refresh ? "?refresh=1" : ""}`, {
+    signal,
+  });
+}
+
+export function fetchWalletPositions(address: string, signal?: AbortSignal) {
+  return get<{ wallet: string; count: number; positions: WalletPosition[] }>(
+    `/api/v1/wallets/${address}/positions`,
+    { signal }
+  );
+}
+
+export function fetchWalletTrades(address: string, limit = 50, signal?: AbortSignal) {
+  return get<{ wallet: string; count: number; trades: WalletTrade[] }>(
+    `/api/v1/wallets/${address}/trades?limit=${limit}`,
+    { signal }
+  );
+}
+
+export function fetchWalletTransactions(address: string, limit = 50, signal?: AbortSignal) {
+  return get<{ address: string; count: number; transactions: WalletTransaction[] }>(
+    `/api/v1/wallets/${address}/transactions?limit=${limit}`,
+    { signal }
+  );
+}

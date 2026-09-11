@@ -13,9 +13,14 @@ const ADDR = /^0x[0-9a-fA-F]{40}$/;
 export function ScanInput({
   className,
   hideHint = false,
+  basePath = "/scan",
+  placeholder = "Paste a Robinhood Chain contract or wallet (0x…)",
 }: {
   className?: string;
   hideHint?: boolean;
+  /** route the address resolves to — /scan for tokens, /wallet for the passport */
+  basePath?: string;
+  placeholder?: string;
 }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +33,7 @@ export function ScanInput({
       return;
     }
     setError(null);
-    // Router wiring lands with the app routes; for now, park it.
-    window.location.href = `/scan/${v.toLowerCase()}`;
+    window.location.href = `${basePath}/${v.toLowerCase()}`;
   };
 
   return (
@@ -49,7 +53,7 @@ export function ScanInput({
           }}
           spellCheck={false}
           autoComplete="off"
-          placeholder="Paste a Robinhood Chain contract or wallet (0x…)"
+          placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent px-2 py-3 text-[13px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
         />
         <button
