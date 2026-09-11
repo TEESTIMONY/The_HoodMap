@@ -222,3 +222,45 @@ export function fetchWalletTransactions(address: string, limit = 50, signal?: Ab
     { signal }
   );
 }
+
+// ---- HoodMap view (holder bubble map) ----
+
+export interface MapNode {
+  address: string;
+  balance: string;
+  pct: number;
+  isPool: boolean;
+  isBurn: boolean;
+  isFunderOnly: boolean;
+  funder: string | null;
+  funderKind: "token" | "native" | null;
+  clusterId: string | null;
+}
+
+export interface MapEdge {
+  from: string;
+  to: string;
+  kind: "token" | "native";
+}
+
+export interface MapCluster {
+  id: string;
+  funder: string;
+  members: string[];
+  memberCount: number;
+  totalPct: number;
+}
+
+export interface TokenMap {
+  address: string;
+  holderCount: number;
+  clusteredPct: number;
+  nodes: MapNode[];
+  edges: MapEdge[];
+  clusters: MapCluster[];
+  note?: string;
+}
+
+export function fetchTokenMap(address: string, signal?: AbortSignal) {
+  return get<TokenMap>(`/api/v1/tokens/${address}/map`, { signal });
+}

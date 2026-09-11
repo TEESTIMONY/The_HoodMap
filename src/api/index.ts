@@ -241,6 +241,16 @@ const DEAD_ADDRS = new Set([
   "0x000000000000000000000000000000000000dead",
 ]);
 
+// V4 is a singleton: every V4 pool's reserves live in the PoolManager
+// contract itself, not at a per-pool address, so it isn't in `pools.address`
+// and needs to be flagged as "pool" by hand — otherwise it shows up as a
+// giant, misleading whale in the holder list for any V4-traded token.
+const V4_SINGLETON_ADDRS = new Set(
+  [contracts.uniswapV4PoolManager]
+    .filter((a): a is `0x${string}` => typeof a === "string")
+    .map((a) => a.toLowerCase())
+);
+
 type Grade = "A" | "B" | "C" | "D" | "E" | "F";
 function gradeFor(score: number): Grade {
   if (score >= 85) return "A";
@@ -296,7 +306,10 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/report", async
     ),
   ]);
 
-  const poolAddrs = new Set<string>(poolsRes.rows.map((p: { address: string }) => p.address.toLowerCase()));
+  const poolAddrs = new Set<string>([
+    ...poolsRes.rows.map((p: { address: string }) => p.address.toLowerCase()),
+    ...V4_SINGLETON_ADDRS,
+  ]);
   const rows = holdersRes.rows as {
     addr: string;
     pct: number | null;
@@ -372,6 +385,198 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/report", async
     },
     hoodscore: { grade: gradeFor(score), score, reasons },
     note: "Balances are net over the indexed transfer window, not a full chain snapshot.",
+  };
+});
+
+// HoodMap view — the holder bubble map. Clustering heuristic: a holder's
+// "funder" is whoever sent its first-ever native-value transfer (every fresh
+// wallet needs gas before it can do anything, DEX buy included). Two or more
+// top holders sharing the same funder become one cluster — the classic signal
+// for "one person/bot controls all of these," even though on-chain they read
+// as unrelated holders. We say so plainly rather than claiming certainty:
+// a shared funder is evidence, not proof (it could be a CEX withdrawal
+// wallet coincidentally funding unrelated people).
+app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/map", async (req, reply) => {
+  const address = requireAddress(req.params.address);
+  const NODE_LIMIT = 80;
+
+  const [holdersRes, poolsRes] = await Promise.all([
+    query<{ addr: string; balance: string; pct: number | null; holder_count: number }>(
+      `WITH deltas AS (
+         SELECT to_address AS addr, amount::numeric AS d
+           FROM token_transfers WHERE chain_id = $1 AND token_address = $2
+         UNION ALL
+         SELECT from_address AS addr, -amount::numeric AS d
+           FROM token_transfers WHERE chain_id = $1 AND token_address = $2
+       ),
+       bal AS (SELECT addr, SUM(d) AS balance FROM deltas GROUP BY addr HAVING SUM(d) > 0),
+       tot AS (SELECT COALESCE(SUM(balance), 0) AS supply, COUNT(*) AS holders FROM bal)
+       SELECT b.addr, b.balance::text, (b.balance / NULLIF(t.supply, 0) * 100)::float8 AS pct,
+              t.holders::int AS holder_count
+         FROM bal b CROSS JOIN tot t
+        ORDER BY b.balance DESC
+        LIMIT $3`,
+      [config.CHAIN_ID, address, NODE_LIMIT]
+    ),
+    query<{ address: string }>(
+      `SELECT address FROM pools WHERE chain_id = $1 AND (token0 = $2 OR token1 = $2)`,
+      [config.CHAIN_ID, address]
+    ),
+  ]);
+
+  if (holdersRes.rows.length === 0) {
+    return reply.send({ address, holderCount: 0, nodes: [], edges: [], clusters: [], note: "No transfers indexed for this token yet." });
+  }
+
+  const poolAddrs = new Set([
+    ...poolsRes.rows.map((p) => p.address.toLowerCase()),
+    ...V4_SINGLETON_ADDRS,
+  ]);
+  const holderCount = holdersRes.rows[0].holder_count;
+
+  type HolderRow = { address: string; balance: string; pct: number; isPool: boolean; isBurn: boolean };
+  const holders: HolderRow[] = holdersRes.rows.map((r) => {
+    const a = r.addr.toLowerCase();
+    return {
+      address: a,
+      balance: r.balance,
+      pct: r.pct ?? 0,
+      isPool: poolAddrs.has(a),
+      isBurn: DEAD_ADDRS.has(a),
+    };
+  });
+
+  // Only "real" wallets get traced to a funder — pools/burn addresses aren't people.
+  const walletAddrs = holders.filter((h) => !h.isPool && !h.isBurn).map((h) => h.address);
+  const excluded = [...poolAddrs, ...DEAD_ADDRS];
+
+  // Two signals, strongest first:
+  //  1. Someone handed them the token directly (not a DEX buy from the pool)
+  //     — a dev/insider pre-distributing to alt wallets before launch is
+  //     strong, direct evidence of common control.
+  //  2. Whoever sent their first-ever native-value transfer — every fresh
+  //     wallet needs gas before it can do anything (DEX buy included), so a
+  //     shared gas source is evidence too, just weaker (it could coincide
+  //     with an unrelated CEX withdrawal wallet).
+  const [tokenFunderRes, nativeFunderRes] = walletAddrs.length
+    ? await Promise.all([
+        query<{ addr: string; funder: string | null }>(
+          `SELECT h.addr, f.from_address AS funder
+             FROM unnest($3::text[]) AS h(addr)
+             LEFT JOIN LATERAL (
+               SELECT from_address FROM token_transfers
+                WHERE chain_id = $1 AND token_address = $2 AND to_address = h.addr
+                  AND from_address <> ALL($4::text[])
+                ORDER BY block_number ASC LIMIT 1
+             ) f ON true`,
+          [config.CHAIN_ID, address, walletAddrs, excluded]
+        ),
+        query<{ addr: string; funder: string | null }>(
+          `SELECT h.addr, f.from_address AS funder
+             FROM unnest($2::text[]) AS h(addr)
+             LEFT JOIN LATERAL (
+               SELECT from_address FROM transactions
+                WHERE chain_id = $1 AND to_address = h.addr AND value > 0
+                ORDER BY block_number ASC LIMIT 1
+             ) f ON true`,
+          [config.CHAIN_ID, walletAddrs]
+        ),
+      ])
+    : [
+        { rows: [] as { addr: string; funder: string | null }[] },
+        { rows: [] as { addr: string; funder: string | null }[] },
+      ];
+
+  const tokenFunderByAddr = new Map<string, string>();
+  for (const r of tokenFunderRes.rows) {
+    if (r.funder && r.funder !== r.addr) tokenFunderByAddr.set(r.addr, r.funder);
+  }
+  const nativeFunderByAddr = new Map<string, string>();
+  for (const r of nativeFunderRes.rows) {
+    if (r.funder && r.funder !== r.addr) nativeFunderByAddr.set(r.addr, r.funder);
+  }
+  const funderByAddr = new Map<string, string>();
+  const funderKindByAddr = new Map<string, "token" | "native">();
+  for (const addr of walletAddrs) {
+    const tf = tokenFunderByAddr.get(addr);
+    const nf = nativeFunderByAddr.get(addr);
+    if (tf) {
+      funderByAddr.set(addr, tf);
+      funderKindByAddr.set(addr, "token");
+    } else if (nf) {
+      funderByAddr.set(addr, nf);
+      funderKindByAddr.set(addr, "native");
+    }
+  }
+
+  // Group wallets by shared funder; only groups of 2+ count as a cluster.
+  const byFunder = new Map<string, string[]>();
+  for (const [addr, funder] of funderByAddr) {
+    if (!byFunder.has(funder)) byFunder.set(funder, []);
+    byFunder.get(funder)!.push(addr);
+  }
+  const holderByAddr = new Map(holders.map((h) => [h.address, h]));
+  const clusters = [...byFunder.entries()]
+    .filter(([, members]) => members.length >= 2)
+    .map(([funder, members]) => ({
+      id: funder,
+      funder,
+      members,
+      memberCount: members.length,
+      totalPct: members.reduce((s, m) => s + (holderByAddr.get(m)?.pct ?? 0), 0),
+    }))
+    .sort((a, b) => b.totalPct - a.totalPct);
+
+  const clusteredAddrs = new Set(clusters.flatMap((c) => c.members));
+  const clusterIdByAddr = new Map<string, string>();
+  for (const c of clusters) for (const m of c.members) clusterIdByAddr.set(m, c.id);
+
+  // Funders that aren't already a top holder still get drawn — dimmed, zero
+  // balance — so a cluster's hub is visible even if it holds none of the
+  // token itself (common: a wallet that only ever distributes gas).
+  const funderOnlyAddrs = [...new Set(clusters.map((c) => c.funder))].filter(
+    (f) => !holderByAddr.has(f)
+  );
+
+  const nodes = [
+    ...holders.map((h) => ({
+      address: h.address,
+      balance: h.balance,
+      pct: h.pct,
+      isPool: h.isPool,
+      isBurn: h.isBurn,
+      isFunderOnly: false,
+      funder: funderByAddr.get(h.address) ?? null,
+      funderKind: funderKindByAddr.get(h.address) ?? null,
+      clusterId: clusterIdByAddr.get(h.address) ?? null,
+    })),
+    ...funderOnlyAddrs.map((f) => ({
+      address: f,
+      balance: "0",
+      pct: 0,
+      isPool: false,
+      isBurn: false,
+      isFunderOnly: true,
+      funder: null,
+      funderKind: null,
+      clusterId: f,
+    })),
+  ];
+
+  const edges = [...clusteredAddrs].map((addr) => ({
+    from: funderByAddr.get(addr)!,
+    to: addr,
+    kind: funderKindByAddr.get(addr)!,
+  }));
+
+  return {
+    address,
+    holderCount,
+    clusteredPct: clusters.reduce((s, c) => s + c.totalPct, 0),
+    nodes,
+    edges,
+    clusters,
+    note: "Balances are net over the indexed transfer window. Clusters are wallets that share a first funder — evidence of common control, not proof.",
   };
 });
 
