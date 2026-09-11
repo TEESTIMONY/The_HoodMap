@@ -111,25 +111,15 @@ export default function TokenScanPage() {
   }, [address]);
 
   const sym = (t?.symbol || "?").toUpperCase();
-  // desktop: pin the whole result to the viewport, only the right column scrolls
-  const pinned = state === "ready";
 
   return (
-    <main
-      className={cn(
-        "relative bg-canvas",
-        pinned ? "lg:h-screen lg:overflow-hidden" : "min-h-[100svh]"
-      )}
-    >
+    // desktop: the whole page is locked to the viewport — nothing scrolls the
+    // document, only the right column scrolls its cards.
+    <main className="relative min-h-[100svh] bg-canvas lg:h-screen lg:overflow-hidden">
       <SiteNav />
 
-      <div
-        className={cn(
-          "w-full px-1 pb-8 pt-[76px] sm:px-1.5 sm:pt-20",
-          pinned && "lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:pb-1.5 lg:pt-[88px]"
-        )}
-      >
-        <div className={pinned ? "lg:shrink-0" : undefined}>
+      <div className="w-full px-1 pb-8 pt-[76px] sm:px-1.5 sm:pt-20 lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:pb-1.5 lg:pt-[88px]">
+        <div className="lg:shrink-0">
           <ScanInput className="max-w-none" hideHint />
         </div>
 
@@ -153,18 +143,8 @@ export default function TokenScanPage() {
         )}
 
         {(state === "loading" || state === "ready") && (
-          <div
-            className={cn(
-              "mt-2 flex flex-col gap-2",
-              pinned && "lg:min-h-0 lg:flex-1 lg:overflow-hidden"
-            )}
-          >
-            <div
-              className={cn(
-                "grid gap-2 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]",
-                pinned && "lg:min-h-0 lg:flex-1 lg:overflow-hidden"
-              )}
-            >
+          <div className="mt-2 flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+            <div className="grid gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_380px]">
               {/* left — chart + tabs + table; never its own scrollbar */}
               <div className="order-2 flex min-w-0 flex-col gap-2 lg:order-1 lg:min-h-0">
                 <div className="hidden lg:block lg:shrink-0">
