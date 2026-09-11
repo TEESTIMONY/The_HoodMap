@@ -63,7 +63,7 @@ export default function TrendingPage() {
     <main className="relative min-h-[100svh] bg-canvas">
       <SiteNav />
 
-      <div className="mx-auto max-w-6xl px-4 pb-24 pt-32 sm:px-6 sm:pt-40">
+      <div className="mx-auto max-w-[1600px] px-4 pb-24 pt-32 sm:px-6 sm:pt-40">
         <div className="flex flex-col gap-2">
           <h1 className="font-display text-[2rem] font-bold uppercase leading-none text-ink sm:text-[2.75rem]">
             Top Memecoins
