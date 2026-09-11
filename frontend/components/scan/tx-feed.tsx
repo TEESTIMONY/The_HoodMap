@@ -57,7 +57,7 @@ export function TxFeed({
 
   const table = (
     // min-w keeps columns from squashing on narrow screens — it scrolls instead
-    <table className="w-full min-w-[720px] max-w-[1240px] border-collapse text-sm">
+    <table className="w-full min-w-[720px] border-collapse text-sm">
       <thead>
         <tr className="sticky top-0 z-10 border-b border-line-strong text-left text-[11px] uppercase tracking-wide text-ink-faint">
           <th className="bg-surface px-2 py-1.5 font-medium">Age</th>
