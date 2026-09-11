@@ -10,7 +10,13 @@ const ADDR = /^0x[0-9a-fA-F]{40}$/;
  * "Paste a contract. See the wallets." — the primary entry point.
  * Lead with the instruction, not the pitch (brand voice).
  */
-export function ScanInput({ className }: { className?: string }) {
+export function ScanInput({
+  className,
+  hideHint = false,
+}: {
+  className?: string;
+  hideHint?: boolean;
+}) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -54,14 +60,16 @@ export function ScanInput({ className }: { className?: string }) {
           <ArrowRight className="size-4" />
         </button>
       </form>
-      <p
-        className={cn(
-          "mt-3 min-h-[1rem] px-4 text-[13px] leading-relaxed",
-          error ? "text-danger" : "text-ink-faint"
-        )}
-      >
-        {error ?? "Raw on-chain history, no login."}
-      </p>
+      {(error || !hideHint) && (
+        <p
+          className={cn(
+            "mt-3 min-h-[1rem] px-4 text-[13px] leading-relaxed",
+            error ? "text-danger" : "text-ink-faint"
+          )}
+        >
+          {error ?? "Raw on-chain history, no login."}
+        </p>
+      )}
     </div>
   );
 }
