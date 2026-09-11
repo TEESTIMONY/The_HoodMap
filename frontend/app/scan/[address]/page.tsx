@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowUpRight, Maximize2, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Maximize2, ShieldCheck, Waypoints } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
 import { ScanInput } from "@/components/site/scan-input";
@@ -186,6 +186,13 @@ export default function TokenScanPage() {
                         )}
                       </button>
                     ))}
+                    <Link
+                      href={`/map/${address}`}
+                      className="flex shrink-0 items-center gap-1.5 rounded-t px-2.5 py-1.5 font-mono text-[12px] uppercase tracking-wide text-ink-faint transition-colors hover:text-ink"
+                    >
+                      <Waypoints className="size-3.5" />
+                      HoodMap
+                    </Link>
                     {tab === "transactions" && swaps.length > 0 && (
                       <button
                         type="button"
