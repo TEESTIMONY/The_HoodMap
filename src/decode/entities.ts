@@ -24,10 +24,32 @@ const tokenCache = new Map<string, TokenInfo>();
 const poolCache = new Map<string, KnownPool>();
 const notPool = new Set<string>();
 
-function classifyToken(address: string): string {
+// Robinhood's own tokenized stocks/ETFs (deployed once, at genesis — ~123 of
+// them) are named "<Company or fund name> • Robinhood Token". That's a far
+// more reliable signal than the symbol: dozens of unrelated memecoins on this
+// chain deliberately reuse real tickers (symbol "AAPL" alone matches 19
+// different tokens, all but one of them jokes/impersonators), so a
+// ticker-allowlist would misclassify exactly the memecoins this platform
+// exists to surface.
+const ROBINHOOD_TOKEN_SUFFIX = "• robinhood token"; // "• Robinhood Token"
+
+function isRobinhoodIssuedInstrument(name: string | null | undefined): boolean {
+  return !!name && name.toLowerCase().trim().endsWith(ROBINHOOD_TOKEN_SUFFIX);
+}
+
+/**
+ * Everything on this chain that isn't the wrapped native asset, the house
+ * stablecoin, or one of Robinhood's own tokenized stocks/ETFs is, by
+ * elimination, a memecoin — this is a token-launch chain, not a general
+ * asset registry. `name` is optional so bare/undiscovered rows still get a
+ * type; classification is re-run (and can only get more specific) once
+ * metadata resolves.
+ */
+function classifyToken(address: string, name?: string | null): string {
   if (isWeth(address)) return "wrapped_native";
   if (isStablecoin(address)) return "stablecoin";
-  return "unknown";
+  if (isRobinhoodIssuedInstrument(name)) return "stock_token";
+  return "meme_token";
 }
 
 export function decimalsOf(address: string): number {
@@ -74,7 +96,7 @@ export async function ensureTokens(addresses: string[], createdBlock: bigint): P
           md.symbol,
           md.decimals,
           md.totalSupply?.toString() ?? null,
-          classifyToken(address),
+          classifyToken(address, md.name),
           createdBlock.toString(),
           !md.looksLikeToken,
         ]
@@ -232,7 +254,7 @@ export async function sweepTokenMetadata(limit = 200): Promise<number> {
           md.symbol,
           md.decimals,
           md.totalSupply?.toString() ?? null,
-          classifyToken(address),
+          classifyToken(address, md.name),
           !md.looksLikeToken,
         ]
       );
@@ -369,7 +391,7 @@ export async function discoverTokenOnDemand(
       md.symbol,
       md.decimals,
       md.totalSupply?.toString() ?? null,
-      classifyToken(address),
+      classifyToken(address, md.name),
     ]
   );
   tokenCache.set(address, { address: address as Hex, decimals: md.decimals ?? 18, symbol: md.symbol });

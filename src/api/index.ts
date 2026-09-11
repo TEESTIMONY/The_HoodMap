@@ -386,6 +386,9 @@ app.get<{ Querystring: { limit?: string; sort?: string } }>("/api/v1/tokens", as
     req.query.sort === "fdv" ? "ts.fdv" :
     req.query.sort === "recent" ? "ts.last_trade_at" :
     "ts.volume_24h";
+  // HoodMap only covers memecoins: excludes the wrapped native asset, the
+  // house stablecoin, and Robinhood's own tokenized stocks/ETFs — see
+  // classifyToken() in src/decode/entities.ts for how that's decided.
   const result = await query(
     `SELECT t.address, t.symbol, t.name, t.decimals, t.token_type, t.verified,
             ts.price, ts.price_native, ts.market_cap, ts.fdv, ts.liquidity_usd,
@@ -393,7 +396,7 @@ app.get<{ Querystring: { limit?: string; sort?: string } }>("/api/v1/tokens", as
             ts.pool_count, ts.price_confidence, ts.last_trade_at
        FROM token_statistics ts
        JOIN tokens t ON t.chain_id = ts.chain_id AND t.address = ts.token_address
-      WHERE ts.chain_id = $1 AND t.discovery_failed = false
+      WHERE ts.chain_id = $1 AND t.discovery_failed = false AND t.token_type = 'meme_token'
       ORDER BY ${sortCol} DESC NULLS LAST
       LIMIT $2`,
     [config.CHAIN_ID, limit]

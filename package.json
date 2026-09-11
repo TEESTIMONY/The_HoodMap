@@ -13,6 +13,7 @@
     "db:analyze": "node scripts/db-analyze.mjs",
     "backfill:pools": "tsx src/scripts/backfillPools.ts",
     "backfill:token-meta": "tsx src/scripts/sweepTokenMeta.ts",
+    "reclassify:tokens": "tsx src/scripts/reclassifyTokens.ts",
     "dev": "node scripts/dev.mjs",
     "dev:indexer": "tsx watch src/indexer/index.ts",
     "dev:api": "tsx watch src/api/index.ts",

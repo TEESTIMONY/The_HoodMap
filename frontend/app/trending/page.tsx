@@ -69,8 +69,9 @@ export default function TrendingPage() {
             Top Memecoins
           </h1>
           <p className="max-w-xl text-[14px] leading-relaxed text-ink-muted">
-            Every traded token on Robinhood Chain, ranked. Prices, liquidity and volume are derived
-            from on-chain pools and swaps, not a listing.
+            Every memecoin traded on Robinhood Chain, ranked. Prices, liquidity and volume are
+            derived from on-chain pools and swaps, not a listing — wrapped WETH, the house
+            stablecoin, and Robinhood&apos;s own tokenized stocks/ETFs are excluded.
           </p>
         </div>
 
