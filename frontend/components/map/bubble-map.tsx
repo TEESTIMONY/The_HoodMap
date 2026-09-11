@@ -12,68 +12,90 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
+import { Minus, Plus, Scan } from "lucide-react";
 import type { MapEdge, MapNode } from "@/lib/api";
 import { shortAddr } from "@/lib/format";
+import { clusterColor, POOL_RGB, ROLE_COLOR, UNCLUSTERED_RGB } from "./colors";
 
 const LIME = "214, 250, 77";
-const MOSS = "23, 176, 74";
-const INK_FAINT = "103, 110, 122";
-const DANGER = "251, 113, 133";
-
-// One hue per cluster, biggest cluster first — lime (the brand accent) always
-// marks whichever cluster controls the most supply, since that's the finding
-// that matters most.
-const CLUSTER_PALETTE = [
-  LIME,
-  "56, 189, 248", // sky
-  "244, 114, 182", // pink
-  "251, 191, 36", // amber
-  "167, 139, 250", // violet
-  "52, 211, 153", // emerald
-  "251, 146, 60", // orange
-  "34, 211, 238", // cyan
-  "248, 113, 113", // red
-  "163, 230, 53", // lime-2
-];
+const MIN_R = 3.5;
+const MAX_R = 44;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3.5;
 
 export interface SimNode extends SimulationNodeDatum {
   id: string;
   raw: MapNode;
   r: number;
   color: string;
+  wobblePhase: number;
+  wobbleSpeed: number;
+  wobbleAmp: number;
 }
 interface SimLink extends SimulationLinkDatum<SimNode> {
-  kind: "token" | "native";
+  kind: MapEdge["kind"];
+  directed: boolean;
 }
 
-function buildNodes(nodes: MapNode[], clusterIndex: Map<string, number>): SimNode[] {
-  const maxPct = Math.max(...nodes.map((n) => n.pct), 0.0001);
-  const MIN_R = 5;
-  const MAX_R = 46;
-  return nodes.map((n) => {
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h;
+}
+function mulberry32(seed: number) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function buildNodes(seedKey: string, dataNodes: MapNode[], clusterIdx: Map<string, number>, clusterCount: number): SimNode[] {
+  const rng = mulberry32(hashStr(seedKey));
+  const maxPct = Math.max(...dataNodes.map((n) => n.pct), 0.0001);
+  return dataNodes.map((n) => {
     const t = Math.sqrt(Math.max(n.pct, 0) / maxPct);
-    const r = n.isFunderOnly ? 6 : Math.max(MIN_R, t * MAX_R);
+    const r = Math.max(MIN_R, t * MAX_R);
     const color = n.isPool
-      ? MOSS
+      ? POOL_RGB
       : n.isBurn
-        ? INK_FAINT
+        ? ROLE_COLOR.burn
         : n.clusterId
-          ? CLUSTER_PALETTE[(clusterIndex.get(n.clusterId) ?? 0) % CLUSTER_PALETTE.length]
-          : INK_FAINT;
-    return { id: n.address, raw: n, r, color };
+          ? clusterColor(clusterIdx.get(n.clusterId) ?? 0, clusterCount)
+          : UNCLUSTERED_RGB;
+    // deterministic seeded scatter, so re-opening the same token's map
+    // starts from the same place every time
+    const angle = rng() * Math.PI * 2;
+    const dist = 40 + rng() * 220;
+    return {
+      id: n.address,
+      raw: n,
+      r,
+      color,
+      x: Math.cos(angle) * dist,
+      y: Math.sin(angle) * dist,
+      wobblePhase: rng() * Math.PI * 2,
+      wobbleSpeed: 0.4 + rng() * 0.5,
+      wobbleAmp: 1.5 + rng() * 2.5,
+    };
   });
 }
 
 export function BubbleMap({
+  tokenAddress,
   nodes: dataNodes,
   edges: dataEdges,
   clusterOrder,
   selected,
   onSelect,
 }: {
+  tokenAddress: string;
   nodes: MapNode[];
   edges: MapEdge[];
-  /** cluster ids, ranked biggest-first — controls palette assignment */
+  /** cluster ids, ranked biggest-first — controls hue assignment */
   clusterOrder: string[];
   selected: string | null;
   onSelect: (address: string | null) => void;
@@ -81,9 +103,8 @@ export function BubbleMap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<Simulation<SimNode, SimLink> | null>(null);
-  const nodesRef = useRef<SimNode[]>([]);
-  const linksRef = useRef<SimLink[]>([]);
   const viewRef = useRef({ x: 0, y: 0, k: 1 });
+  const viewTweenRef = useRef<{ from: typeof viewRef.current; to: typeof viewRef.current; t0: number; dur: number } | null>(null);
   const dragRef = useRef<{ node: SimNode | null; moved: boolean; panning: boolean; lastX: number; lastY: number }>(
     { node: null, moved: false, panning: false, lastX: 0, lastY: 0 }
   );
@@ -91,6 +112,7 @@ export function BubbleMap({
   const selectedRef = useRef<string | null>(selected);
   const [hoverInfo, setHoverInfo] = useState<{ node: SimNode; x: number; y: number } | null>(null);
   const [ready, setReady] = useState(false);
+  const fitRef = useRef<() => void>(() => {});
 
   const clusterIndex = useMemo(() => {
     const m = new Map<string, number>();
@@ -111,13 +133,11 @@ export function BubbleMap({
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const nodes = buildNodes(dataNodes, clusterIndex);
+    const nodes = buildNodes(tokenAddress, dataNodes, clusterIndex, clusterOrder.length);
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const links: SimLink[] = dataEdges
       .filter((e) => byId.has(e.from) && byId.has(e.to))
-      .map((e) => ({ source: e.from, target: e.to, kind: e.kind }));
-    nodesRef.current = nodes;
-    linksRef.current = links;
+      .map((e) => ({ source: e.from, target: e.to, kind: e.kind, directed: e.directed }));
 
     let width = 0;
     let height = 0;
@@ -143,17 +163,10 @@ export function BubbleMap({
         "link",
         forceLink<SimNode, SimLink>(links)
           .id((d) => d.id)
-          .distance(36)
+          .distance(34)
           .strength(0.7)
       )
-      .force(
-        "collide",
-        forceCollide<SimNode>((d) => d.r + 3).strength(1)
-      )
-      // Pull every node toward the middle individually (not just the
-      // centroid, which is all forceCenter does) — this is what makes
-      // unlinked nodes still gravitate into one packed mass instead of
-      // drifting off into empty canvas.
+      .force("collide", forceCollide<SimNode>((d) => d.r + 3).strength(1))
       .force("x", forceX(0).strength(0.045))
       .force("y", forceY(0).strength(0.045))
       .alphaDecay(reduceMotion ? 0.2 : 0.018)
@@ -161,8 +174,8 @@ export function BubbleMap({
     simRef.current = sim;
 
     let fitted = false;
-    const fitView = () => {
-      if (fitted || nodes.length === 0) return;
+    const fitView = (animated = false) => {
+      if (nodes.length === 0) return;
       let minX = Infinity,
         maxX = -Infinity,
         minY = Infinity,
@@ -175,19 +188,18 @@ export function BubbleMap({
       }
       const w = Math.max(1, maxX - minX);
       const h = Math.max(1, maxY - minY);
-      const k = Math.min(2.2, Math.max(0.4, Math.min(width / (w * 1.3), height / (h * 1.3))));
-      if (Number.isFinite(k)) {
-        viewRef.current.k = k;
-        viewRef.current.x = -(minX + maxX) / 2;
-        viewRef.current.y = -(minY + maxY) / 2;
-        fitted = true;
-      }
+      const k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(width / (w * 1.25), height / (h * 1.25))));
+      if (!Number.isFinite(k)) return;
+      const target = { k, x: -(minX + maxX) / 2, y: -(minY + maxY) / 2 };
+      if (animated) tweenTo(target);
+      else viewRef.current = target;
+      fitted = true;
     };
+    fitRef.current = () => fitView(true);
 
-    // Gentle ambient drift so the graph never looks perfectly static, even at
-    // rest — small, slow, and independent of the physics so it can't jitter.
-    let t = 0;
-    let raf = 0;
+    const tweenTo = (to: { x: number; y: number; k: number }) => {
+      viewTweenRef.current = { from: { ...viewRef.current }, to, t0: performance.now(), dur: 420 };
+    };
 
     const worldToScreen = (x: number, y: number) => ({
       x: width / 2 + (x + viewRef.current.x) * viewRef.current.k,
@@ -198,7 +210,7 @@ export function BubbleMap({
       y: (y - height / 2) / viewRef.current.k - viewRef.current.y,
     });
 
-    const draw = () => {
+    const draw = (tSec: number, settled: boolean) => {
       ctx.fillStyle = "#06070a";
       ctx.fillRect(0, 0, width, height);
 
@@ -206,55 +218,75 @@ export function BubbleMap({
         ? byId.get(selectedRef.current)?.raw.clusterId
         : null;
 
-      // edges
+      const pos = (n: SimNode) => {
+        const wobble = settled && !reduceMotion ? 1 : 0;
+        return {
+          x: (n.x ?? 0) + Math.sin(tSec * n.wobbleSpeed + n.wobblePhase) * n.wobbleAmp * wobble,
+          y: (n.y ?? 0) + Math.cos(tSec * n.wobbleSpeed * 1.3 + n.wobblePhase) * n.wobbleAmp * wobble,
+        };
+      };
+
+      // edges — gentle curve, arrowhead only when the direction is real
       for (const l of links) {
         const s = l.source as SimNode;
         const e = l.target as SimNode;
         if (typeof s !== "object" || typeof e !== "object") continue;
-        const a = worldToScreen(s.x ?? 0, s.y ?? 0);
-        const b = worldToScreen(e.x ?? 0, e.y ?? 0);
-        const dim = activeCluster && e.raw.clusterId !== activeCluster;
+        const sp = pos(s);
+        const ep = pos(e);
+        const a = worldToScreen(sp.x, sp.y);
+        const b = worldToScreen(ep.x, ep.y);
+        const dim = activeCluster && e.raw.clusterId !== activeCluster && s.raw.clusterId !== activeCluster;
+
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const bow = Math.min(30, dist * 0.18);
+        const cx = mx - (dy / dist) * bow;
+        const cy = my + (dx / dist) * bow;
+
+        const color = l.kind === "token" ? LIME : l.kind === "native" ? "154, 161, 174" : e.color;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle =
-          l.kind === "token"
-            ? `rgba(${LIME}, ${dim ? 0.06 : 0.4})`
-            : `rgba(${INK_FAINT}, ${dim ? 0.04 : 0.35})`;
-        ctx.lineWidth = Math.max(1, 1.4 * viewRef.current.k);
-        ctx.setLineDash(l.kind === "native" ? [2, 4] : []);
+        ctx.quadraticCurveTo(cx, cy, b.x, b.y);
+        ctx.strokeStyle = `rgba(${color}, ${dim ? 0.06 : l.directed ? 0.42 : 0.3})`;
+        ctx.lineWidth = Math.max(1, (l.directed ? 1.4 : 1) * viewRef.current.k);
+        if (l.kind === "native") ctx.setLineDash([2, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // arrowhead at the funded end
-        const ang = Math.atan2(b.y - a.y, b.x - a.x);
-        const back = e.r * viewRef.current.k + 3;
-        const tipX = b.x - Math.cos(ang) * back;
-        const tipY = b.y - Math.sin(ang) * back;
-        const asz = 4 * Math.min(1.4, viewRef.current.k);
-        ctx.beginPath();
-        ctx.moveTo(tipX, tipY);
-        ctx.lineTo(tipX - Math.cos(ang - 0.5) * asz, tipY - Math.sin(ang - 0.5) * asz);
-        ctx.lineTo(tipX - Math.cos(ang + 0.5) * asz, tipY - Math.sin(ang + 0.5) * asz);
-        ctx.closePath();
-        ctx.fillStyle =
-          l.kind === "token" ? `rgba(${LIME}, ${dim ? 0.08 : 0.55})` : `rgba(${INK_FAINT}, ${dim ? 0.06 : 0.45})`;
-        ctx.fill();
+        if (l.directed) {
+          const ang = Math.atan2(b.y - cy, b.x - cx);
+          const back = e.r * viewRef.current.k + 3;
+          const tipX = b.x - Math.cos(ang) * back;
+          const tipY = b.y - Math.sin(ang) * back;
+          const asz = 4 * Math.min(1.4, viewRef.current.k);
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(tipX - Math.cos(ang - 0.5) * asz, tipY - Math.sin(ang - 0.5) * asz);
+          ctx.lineTo(tipX - Math.cos(ang + 0.5) * asz, tipY - Math.sin(ang + 0.5) * asz);
+          ctx.closePath();
+          ctx.fillStyle = `rgba(${color}, ${dim ? 0.08 : 0.6})`;
+          ctx.fill();
+        }
       }
 
-      // nodes
+      // nodes, smallest first so big bubbles never bury small ones' outlines
       const sorted = [...nodes].sort((a, b) => a.r - b.r);
       for (const n of sorted) {
-        const p = worldToScreen(n.x ?? 0, n.y ?? 0);
+        const np = pos(n);
+        const p = worldToScreen(np.x, np.y);
         const r = Math.max(1.2, n.r * viewRef.current.k);
         const isSelected = n.id === selectedRef.current;
         const dim = activeCluster ? n.raw.clusterId !== activeCluster && !isSelected : false;
-        const alpha = dim ? 0.18 : 1;
+        const alpha = dim ? 0.16 : 1;
+        const hasCluster = !!n.raw.clusterId;
 
-        if (!dim && (isSelected || n.raw.clusterId)) {
+        if (!dim && (isSelected || hasCluster)) {
           ctx.save();
           ctx.shadowColor = `rgba(${n.color}, 0.9)`;
-          ctx.shadowBlur = isSelected ? 22 : 10;
+          ctx.shadowBlur = isSelected ? 24 : hasCluster ? 13 : 6;
           ctx.beginPath();
           ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(${n.color}, ${0.16 * alpha})`;
@@ -264,29 +296,33 @@ export function BubbleMap({
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = n.raw.isFunderOnly
-          ? "rgba(6,7,10,0.9)"
-          : `rgba(${n.color}, ${(n.raw.isPool ? 0.5 : 0.32) * alpha})`;
+        ctx.fillStyle = `rgba(${n.color}, ${(n.raw.isPool ? 0.5 : hasCluster ? 0.34 : 0.22) * alpha})`;
         ctx.fill();
-        ctx.lineWidth = isSelected ? 2.5 : n.raw.isFunderOnly ? 1.2 : 1.4;
+        ctx.lineWidth = isSelected ? 2.5 : 1.3;
         ctx.strokeStyle = `rgba(${n.color}, ${(isSelected ? 1 : 0.85) * alpha})`;
-        if (n.raw.isFunderOnly) ctx.setLineDash([2, 2]);
         ctx.stroke();
-        ctx.setLineDash([]);
 
-        if (r > 13 && !dim) {
+        if (r > 12 && !dim) {
           ctx.fillStyle = `rgba(244,245,247,${alpha})`;
-          ctx.font = `${n.raw.isPool ? "600 " : "500 "}${Math.min(12, r * 0.42)}px "Geist Mono", monospace`;
+          ctx.font = `${n.raw.isPool ? "600 " : "500 "}${Math.min(12, r * 0.4)}px "Geist Mono", monospace`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const label = n.raw.isPool ? "POOL" : n.raw.isBurn ? "BURN" : shortAddr(n.raw.address);
+          const label =
+            n.raw.role === "liquidity"
+              ? "POOL"
+              : n.raw.role === "burn"
+                ? "BURN"
+                : n.raw.role === "deployer"
+                  ? "DEV"
+                  : shortAddr(n.raw.address);
           ctx.fillText(label, p.x, p.y);
         }
       }
 
       const hn = hoverRef.current;
       if (hn) {
-        const p = worldToScreen(hn.x ?? 0, hn.y ?? 0);
+        const hp = pos(hn);
+        const p = worldToScreen(hp.x, hp.y);
         const r = Math.max(1.2, hn.r * viewRef.current.k);
         ctx.beginPath();
         ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
@@ -296,17 +332,25 @@ export function BubbleMap({
       }
     };
 
-    sim.on("tick", () => {
-      if (sim.alpha() < 0.15) fitView();
-      draw();
-    });
-
-    const idleLoop = () => {
-      t += 1;
-      if (sim.alpha() < sim.alphaMin() && !reduceMotion) draw();
-      raf = requestAnimationFrame(idleLoop);
+    let raf = 0;
+    const loop = (now: number) => {
+      const tw = viewTweenRef.current;
+      if (tw) {
+        const p = Math.min(1, (now - tw.t0) / tw.dur);
+        const e = 1 - (1 - p) * (1 - p) * (1 - p); // ease-out cubic
+        viewRef.current = {
+          x: tw.from.x + (tw.to.x - tw.from.x) * e,
+          y: tw.from.y + (tw.to.y - tw.from.y) * e,
+          k: tw.from.k + (tw.to.k - tw.from.k) * e,
+        };
+        if (p >= 1) viewTweenRef.current = null;
+      }
+      const settled = sim.alpha() < sim.alphaMin();
+      if (settled && !fitted) fitView(false);
+      draw(now / 1000, settled);
+      raf = requestAnimationFrame(loop);
     };
-    if (!reduceMotion) raf = requestAnimationFrame(idleLoop);
+    raf = requestAnimationFrame(loop);
     setReady(true);
 
     const hitTest = (sx: number, sy: number): SimNode | null => {
@@ -349,20 +393,21 @@ export function BubbleMap({
         d.node.fx = w.x;
         d.node.fy = w.y;
         d.moved = true;
-        draw();
       } else if (d.panning && (e.buttons & 1) === 1) {
-        viewRef.current.x += (e.clientX - d.lastX) / viewRef.current.k;
-        viewRef.current.y += (e.clientY - d.lastY) / viewRef.current.k;
+        viewTweenRef.current = null;
+        viewRef.current = {
+          ...viewRef.current,
+          x: viewRef.current.x + (e.clientX - d.lastX) / viewRef.current.k,
+          y: viewRef.current.y + (e.clientY - d.lastY) / viewRef.current.k,
+        };
         d.lastX = e.clientX;
         d.lastY = e.clientY;
         d.moved = true;
-        draw();
       } else {
         const hit = hitTest(sx, sy);
         hoverRef.current = hit;
         setHoverInfo(hit ? { node: hit, x: sx, y: sy } : null);
         canvas.style.cursor = hit ? "pointer" : "grab";
-        draw();
       }
     };
 
@@ -382,16 +427,16 @@ export function BubbleMap({
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      viewTweenRef.current = null;
       const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const before = screenToWorld(sx, sy);
       const factor = Math.exp(-e.deltaY * 0.0012);
-      viewRef.current.k = Math.min(4, Math.max(0.25, viewRef.current.k * factor));
+      viewRef.current.k = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, viewRef.current.k * factor));
       const after = screenToWorld(sx, sy);
       viewRef.current.x += after.x - before.x;
       viewRef.current.y += after.y - before.y;
-      draw();
     };
 
     canvas.addEventListener("pointerdown", onDown);
@@ -409,7 +454,12 @@ export function BubbleMap({
       canvas.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataNodes, dataEdges, clusterIndex]);
+  }, [tokenAddress, dataNodes, dataEdges, clusterIndex, clusterOrder.length]);
+
+  const zoomBy = (factor: number) => {
+    const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, viewRef.current.k * factor));
+    viewTweenRef.current = { from: { ...viewRef.current }, to: { ...viewRef.current, k: next }, t0: performance.now(), dur: 200 };
+  };
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-md bg-canvas">
@@ -424,43 +474,43 @@ export function BubbleMap({
           }}
         >
           <p className="font-semibold text-ink">
-            {hoverInfo.node.raw.isPool
-              ? "Liquidity pool"
-              : hoverInfo.node.raw.isBurn
-                ? "Burn address"
-                : hoverInfo.node.raw.isFunderOnly
-                  ? "Funding source"
-                  : shortAddr(hoverInfo.node.raw.address)}
+            {hoverInfo.node.raw.isPool ? "Liquidity pool" : shortAddr(hoverInfo.node.raw.address)}
           </p>
-          {!hoverInfo.node.raw.isFunderOnly && (
-            <p className="tabular mt-0.5 text-ink-muted">{hoverInfo.node.raw.pct.toFixed(3)}% of supply</p>
-          )}
+          <p className="tabular mt-0.5 text-ink-muted">{hoverInfo.node.raw.pct.toFixed(3)}% of supply</p>
           {hoverInfo.node.raw.clusterId && (
-            <p className="mt-0.5 text-ink-faint">
-              funded by {shortAddr(hoverInfo.node.raw.clusterId)}
-            </p>
+            <p className="mt-0.5 text-ink-faint">cluster · {shortAddr(hoverInfo.node.raw.clusterId)}</p>
           )}
         </div>
       )}
 
-      {/* legend */}
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 rounded-lg border border-line bg-surface/70 px-3 py-2.5 font-mono text-[10px] text-ink-muted backdrop-blur-md">
-        <div className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full border border-lime/70 bg-lime/25" />
-          bubble size = share of supply
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full" style={{ backgroundColor: `rgba(${MOSS},0.6)` }} />
-          liquidity pool
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-px w-3 bg-lime/60" />
-          same cluster, direct transfer
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-px w-3 border-t border-dashed border-ink-faint" />
-          same cluster, shared gas funder
-        </div>
+      {/* zoom controls */}
+      <div className="absolute bottom-3 right-3 z-10 flex flex-col overflow-hidden rounded-lg border border-line bg-surface/80 backdrop-blur-md">
+        <button
+          type="button"
+          aria-label="Zoom in"
+          onClick={() => zoomBy(1.4)}
+          className="grid size-8 place-items-center text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <Plus className="size-3.5" />
+        </button>
+        <div className="h-px bg-line" />
+        <button
+          type="button"
+          aria-label="Zoom out"
+          onClick={() => zoomBy(1 / 1.4)}
+          className="grid size-8 place-items-center text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <Minus className="size-3.5" />
+        </button>
+        <div className="h-px bg-line" />
+        <button
+          type="button"
+          aria-label="Reset view"
+          onClick={() => fitRef.current()}
+          className="grid size-8 place-items-center text-ink-muted transition-colors hover:bg-surface-3 hover:text-ink"
+        >
+          <Scan className="size-3.5" />
+        </button>
       </div>
 
       {!ready && (

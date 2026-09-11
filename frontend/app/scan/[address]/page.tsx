@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { ArrowUpRight, Maximize2, ShieldCheck, Waypoints } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
@@ -13,6 +12,7 @@ import { MarketStats } from "@/components/scan/market-stats";
 import { HoodScoreCard } from "@/components/scan/hoodscore-card";
 import { TxFeed } from "@/components/scan/tx-feed";
 import { Modal } from "@/components/ui/modal";
+import { HoodMapView } from "@/components/map/hoodmap-view";
 import {
   fetchToken,
   fetchTokenReport,
@@ -78,6 +78,7 @@ export default function TokenScanPage() {
   const [swapsLoading, setSwapsLoading] = useState(true);
   const [tab, setTab] = useState<"transactions" | "summary" | "chart">("transactions");
   const [txModal, setTxModal] = useState(false);
+  const [hoodMapOpen, setHoodMapOpen] = useState(false);
 
   useEffect(() => {
     if (!address) return;
@@ -186,13 +187,14 @@ export default function TokenScanPage() {
                         )}
                       </button>
                     ))}
-                    <Link
-                      href={`/map/${address}`}
+                    <button
+                      type="button"
+                      onClick={() => setHoodMapOpen(true)}
                       className="flex shrink-0 items-center gap-1.5 rounded-t px-2.5 py-1.5 font-mono text-[12px] uppercase tracking-wide text-ink-faint transition-colors hover:text-ink"
                     >
                       <Waypoints className="size-3.5" />
                       HoodMap
-                    </Link>
+                    </button>
                     {tab === "transactions" && swaps.length > 0 && (
                       <button
                         type="button"
@@ -282,6 +284,12 @@ export default function TokenScanPage() {
       {txModal && (
         <Modal title="Transactions" onClose={() => setTxModal(false)}>
           <TxFeed swaps={swaps} decimals={t?.decimals ?? null} loading={swapsLoading} expanded />
+        </Modal>
+      )}
+
+      {hoodMapOpen && (
+        <Modal title={`HoodMap — ${sym}`} onClose={() => setHoodMapOpen(false)} size="full">
+          <HoodMapView tokenAddress={address} decimals={t?.decimals ?? null} price={t?.price ?? null} />
         </Modal>
       )}
     </main>

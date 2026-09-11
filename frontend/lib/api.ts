@@ -225,22 +225,32 @@ export function fetchWalletTransactions(address: string, limit = 50, signal?: Ab
 
 // ---- HoodMap view (holder bubble map) ----
 
+export type WalletRole =
+  | "deployer"
+  | "liquidity"
+  | "burn"
+  | "insider"
+  | "sniper"
+  | "whale"
+  | "holder";
+
 export interface MapNode {
   address: string;
   balance: string;
   pct: number;
   isPool: boolean;
   isBurn: boolean;
-  isFunderOnly: boolean;
   funder: string | null;
   funderKind: "token" | "native" | null;
   clusterId: string | null;
+  role: WalletRole;
 }
 
 export interface MapEdge {
   from: string;
   to: string;
-  kind: "token" | "native";
+  kind: "token" | "native" | "chain";
+  directed: boolean;
 }
 
 export interface MapCluster {
@@ -263,4 +273,24 @@ export interface TokenMap {
 
 export function fetchTokenMap(address: string, signal?: AbortSignal) {
   return get<TokenMap>(`/api/v1/tokens/${address}/map`, { signal });
+}
+
+export interface WalletTokenActivity {
+  address: string;
+  wallet: string;
+  inflow: { total: string; counterparties: number };
+  outflow: { total: string; counterparties: number };
+  transferCount: number;
+  recentTransfers: {
+    hash: string;
+    direction: "in" | "out";
+    counterparty: string;
+    amount: string;
+    blockNumber: string;
+    timestamp: string;
+  }[];
+}
+
+export function fetchWalletTokenActivity(address: string, wallet: string, signal?: AbortSignal) {
+  return get<WalletTokenActivity>(`/api/v1/tokens/${address}/holders/${wallet}`, { signal });
 }

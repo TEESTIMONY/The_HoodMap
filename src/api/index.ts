@@ -398,7 +398,8 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/report", async
 // wallet coincidentally funding unrelated people).
 app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/map", async (req, reply) => {
   const address = requireAddress(req.params.address);
-  const NODE_LIMIT = 80;
+  const NODE_LIMIT = 100;
+  const SNIPER_BLOCK_WINDOW = 3n; // bought within the token's first few blocks of trading
 
   const [holdersRes, poolsRes] = await Promise.all([
     query<{ addr: string; balance: string; pct: number | null; holder_count: number }>(
@@ -527,46 +528,89 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/map", async (r
     }))
     .sort((a, b) => b.totalPct - a.totalPct);
 
-  const clusteredAddrs = new Set(clusters.flatMap((c) => c.members));
   const clusterIdByAddr = new Map<string, string>();
   for (const c of clusters) for (const m of c.members) clusterIdByAddr.set(m, c.id);
 
-  // Funders that aren't already a top holder still get drawn — dimmed, zero
-  // balance — so a cluster's hub is visible even if it holds none of the
-  // token itself (common: a wallet that only ever distributes gas).
-  const funderOnlyAddrs = [...new Set(clusters.map((c) => c.funder))].filter(
-    (f) => !holderByAddr.has(f)
+  // Every bubble on the map is a real top-100 holder — no synthetic "funder"
+  // nodes. When a cluster's funder IS one of them, draw directed arrows from
+  // it to each member (we know the real direction of seeding). When the
+  // funder didn't make the top-100 cut (it holds ~nothing itself — common
+  // for a wallet that only ever distributes gas), fall back to an undirected
+  // chain across the members so the cluster still reads as connected without
+  // implying a direction we can't actually show.
+  const edges: { from: string; to: string; kind: "token" | "native" | "chain"; directed: boolean }[] = [];
+  for (const c of clusters) {
+    if (holderByAddr.has(c.funder)) {
+      for (const m of c.members) {
+        edges.push({ from: c.funder, to: m, kind: funderKindByAddr.get(m)!, directed: true });
+      }
+    } else {
+      for (let i = 1; i < c.members.length; i++) {
+        edges.push({ from: c.members[i - 1], to: c.members[i], kind: "chain", directed: false });
+      }
+    }
+  }
+
+  // Wallet role — a best-effort read of each holder's place in the story,
+  // priority most-specific first. "Deployer" = whoever received the token's
+  // very first mint; "Sniper" = bought within the first few blocks of
+  // trading; "Insider" = shares a detected funder with another top holder;
+  // "Whale" = a large stake with no other signal.
+  const [deployerRes, tokenFirstSwapRes, walletFirstSwapRes] = await Promise.all([
+    query<{ to_address: string }>(
+      `SELECT to_address FROM token_transfers
+        WHERE chain_id = $1 AND token_address = $2 AND from_address = ANY($3::text[])
+        ORDER BY block_number ASC LIMIT 1`,
+      [config.CHAIN_ID, address, [...DEAD_ADDRS]]
+    ),
+    query<{ min_block: string | null }>(
+      `SELECT MIN(block_number)::text AS min_block FROM swaps
+        WHERE chain_id = $1 AND (token_in = $2 OR token_out = $2)`,
+      [config.CHAIN_ID, address]
+    ),
+    walletAddrs.length
+      ? query<{ wallet_address: string; min_block: string }>(
+          `SELECT wallet_address, MIN(block_number)::text AS min_block FROM swaps
+            WHERE chain_id = $1 AND (token_in = $2 OR token_out = $2)
+              AND wallet_address = ANY($3::text[])
+            GROUP BY wallet_address`,
+          [config.CHAIN_ID, address, walletAddrs]
+        )
+      : { rows: [] as { wallet_address: string; min_block: string }[] },
+  ]);
+
+  const deployerAddr = deployerRes.rows[0]?.to_address?.toLowerCase() ?? null;
+  const tokenFirstSwapBlock = tokenFirstSwapRes.rows[0]?.min_block
+    ? BigInt(tokenFirstSwapRes.rows[0].min_block)
+    : null;
+  const firstSwapByWallet = new Map(
+    walletFirstSwapRes.rows.map((r) => [r.wallet_address.toLowerCase(), BigInt(r.min_block)])
   );
 
-  const nodes = [
-    ...holders.map((h) => ({
-      address: h.address,
-      balance: h.balance,
-      pct: h.pct,
-      isPool: h.isPool,
-      isBurn: h.isBurn,
-      isFunderOnly: false,
-      funder: funderByAddr.get(h.address) ?? null,
-      funderKind: funderKindByAddr.get(h.address) ?? null,
-      clusterId: clusterIdByAddr.get(h.address) ?? null,
-    })),
-    ...funderOnlyAddrs.map((f) => ({
-      address: f,
-      balance: "0",
-      pct: 0,
-      isPool: false,
-      isBurn: false,
-      isFunderOnly: true,
-      funder: null,
-      funderKind: null,
-      clusterId: f,
-    })),
-  ];
+  type Role = "deployer" | "liquidity" | "burn" | "insider" | "sniper" | "whale" | "holder";
+  function roleFor(h: HolderRow): Role {
+    if (h.isBurn) return "burn";
+    if (h.isPool) return "liquidity";
+    if (deployerAddr && h.address === deployerAddr) return "deployer";
+    if (clusterIdByAddr.has(h.address)) return "insider";
+    const firstSwap = firstSwapByWallet.get(h.address);
+    if (tokenFirstSwapBlock !== null && firstSwap !== undefined && firstSwap <= tokenFirstSwapBlock + SNIPER_BLOCK_WINDOW) {
+      return "sniper";
+    }
+    if (h.pct >= 5) return "whale";
+    return "holder";
+  }
 
-  const edges = [...clusteredAddrs].map((addr) => ({
-    from: funderByAddr.get(addr)!,
-    to: addr,
-    kind: funderKindByAddr.get(addr)!,
+  const nodes = holders.map((h) => ({
+    address: h.address,
+    balance: h.balance,
+    pct: h.pct,
+    isPool: h.isPool,
+    isBurn: h.isBurn,
+    funder: funderByAddr.get(h.address) ?? null,
+    funderKind: funderKindByAddr.get(h.address) ?? null,
+    clusterId: clusterIdByAddr.get(h.address) ?? null,
+    role: roleFor(h),
   }));
 
   return {
@@ -576,9 +620,68 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address/map", async (r
     nodes,
     edges,
     clusters,
-    note: "Balances are net over the indexed transfer window. Clusters are wallets that share a first funder — evidence of common control, not proof.",
+    note: "Balances are net over the indexed transfer window, capped to the top 100 holders. Clusters are wallets that share a first funder — evidence of common control, not proof.",
   };
 });
+
+// Fetched lazily when a bubble is clicked on the HoodMap view — the map
+// response itself stays light (100 holders, no per-wallet transfer scan);
+// this is the one wallet the user actually asked about.
+app.get<{ Params: { address: string; wallet: string } }>(
+  "/api/v1/tokens/:address/holders/:wallet",
+  async (req) => {
+    const address = requireAddress(req.params.address);
+    const wallet = requireAddress(req.params.wallet);
+
+    const [inRes, outRes, countRes, recentRes] = await Promise.all([
+      query<{ total: string; counterparties: string }>(
+        `SELECT COALESCE(SUM(amount), 0)::text AS total, COUNT(DISTINCT from_address)::text AS counterparties
+           FROM token_transfers WHERE chain_id = $1 AND token_address = $2 AND to_address = $3`,
+        [config.CHAIN_ID, address, wallet]
+      ),
+      query<{ total: string; counterparties: string }>(
+        `SELECT COALESCE(SUM(amount), 0)::text AS total, COUNT(DISTINCT to_address)::text AS counterparties
+           FROM token_transfers WHERE chain_id = $1 AND token_address = $2 AND from_address = $3`,
+        [config.CHAIN_ID, address, wallet]
+      ),
+      query<{ n: string }>(
+        `SELECT COUNT(*)::text AS n FROM token_transfers
+          WHERE chain_id = $1 AND token_address = $2 AND (from_address = $3 OR to_address = $3)`,
+        [config.CHAIN_ID, address, wallet]
+      ),
+      query<{
+        transaction_hash: string;
+        from_address: string;
+        to_address: string;
+        amount: string;
+        block_number: string;
+        timestamp: string;
+      }>(
+        `SELECT transaction_hash, from_address, to_address, amount, block_number, timestamp
+           FROM token_transfers
+          WHERE chain_id = $1 AND token_address = $2 AND (from_address = $3 OR to_address = $3)
+          ORDER BY block_number DESC LIMIT 20`,
+        [config.CHAIN_ID, address, wallet]
+      ),
+    ]);
+
+    return {
+      address,
+      wallet,
+      inflow: { total: inRes.rows[0].total, counterparties: Number(inRes.rows[0].counterparties) },
+      outflow: { total: outRes.rows[0].total, counterparties: Number(outRes.rows[0].counterparties) },
+      transferCount: Number(countRes.rows[0].n),
+      recentTransfers: recentRes.rows.map((r) => ({
+        hash: r.transaction_hash,
+        direction: r.to_address.toLowerCase() === wallet ? "in" : "out",
+        counterparty: r.to_address.toLowerCase() === wallet ? r.from_address : r.to_address,
+        amount: r.amount,
+        blockNumber: r.block_number,
+        timestamp: r.timestamp,
+      })),
+    };
+  }
+);
 
 // ---- DEX read layer ----
 // Lists are driven by the precomputed token_statistics / pair_statistics tables
