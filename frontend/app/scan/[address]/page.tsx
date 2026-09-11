@@ -21,7 +21,8 @@ import {
   type TokenReport,
   type TokenSwap,
 } from "@/lib/api";
-import { monogramColor, shortAddr, since } from "@/lib/format";
+import { shortAddr, since } from "@/lib/format";
+import { TokenIcon } from "@/components/ui/token-icon";
 
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 
@@ -213,12 +214,12 @@ export default function TokenScanPage() {
               {/* right — token identity (pinned) + the one scroll region */}
               <div className="order-1 flex flex-col gap-1.5 lg:order-2 lg:h-full lg:min-h-0">
                 <div className="flex items-start gap-2 px-1 lg:shrink-0">
-                  <span
-                    className="grid size-9 shrink-0 place-items-center rounded-md text-[14px] font-bold text-white"
-                    style={{ backgroundColor: monogramColor(sym) }}
-                  >
-                    {state === "loading" ? "" : sym.slice(0, 1)}
-                  </span>
+                  <TokenIcon
+                    address={address}
+                    symbol={state === "loading" ? null : sym}
+                    className="size-9 rounded-md"
+                    textClassName="text-[14px]"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {state === "loading" ? (

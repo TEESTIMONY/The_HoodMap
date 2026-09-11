@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { WalletPosition } from "@/lib/api";
 import { priceUsd, since, tokenAmount, usdCompact } from "@/lib/format";
+import { TokenIcon } from "@/components/ui/token-icon";
 import { DIVIDER } from "./table-shared";
 
 function pnlColor(v: string | null): string {
@@ -69,7 +70,15 @@ export function PositionsTable({
                 className="divide-x divide-line-strong border-b border-line-strong transition last:border-b-0 hover:bg-white/[0.02]"
               >
                 <td className="px-2 py-1.5 font-mono text-[12px] text-ink">
-                  <span className="font-semibold">{p.symbol ?? "?"}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <TokenIcon
+                      address={p.token_address}
+                      symbol={p.symbol}
+                      className="size-4"
+                      textClassName="text-[8px]"
+                    />
+                    <span className="font-semibold">{p.symbol ?? "?"}</span>
+                  </span>
                   {p.last_activity_at && (
                     <span className="ml-1.5 text-ink-faint">· {since(p.last_activity_at)}</span>
                   )}

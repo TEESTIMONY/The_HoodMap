@@ -4,8 +4,9 @@ import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TokenRow } from "@/lib/api";
-import { count, monogramColor, priceUsd, shortAddr, usdCompact } from "@/lib/format";
+import { count, priceUsd, shortAddr, usdCompact } from "@/lib/format";
 import { CopyButton } from "@/components/ui/copy-button";
+import { TokenIcon } from "@/components/ui/token-icon";
 
 const COLS =
   "grid-cols-[44px_minmax(180px,2fr)_repeat(5,minmax(96px,1fr))_minmax(108px,1fr)]";
@@ -56,12 +57,7 @@ function Row({ rank, r }: { rank: number; r: TokenRow }) {
       <div className="px-3 py-3.5 text-center font-mono text-[12px] text-ink-faint">{rank}</div>
 
       <div className="flex min-w-0 items-center gap-2.5 px-3 py-3.5">
-        <span
-          className="grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
-          style={{ backgroundColor: monogramColor(sym) }}
-        >
-          {sym.slice(0, 1)}
-        </span>
+        <TokenIcon address={r.address} symbol={sym} className="size-7" />
         <span className="min-w-0">
           <span className="flex items-center gap-1.5">
             <span className="truncate font-mono text-[13px] font-semibold">{sym}</span>

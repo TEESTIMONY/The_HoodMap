@@ -2,6 +2,7 @@ import { ArrowDownRight, ArrowUpRight, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WalletTrade } from "@/lib/api";
 import { priceUsd, since, tokenAmount, usdCompact } from "@/lib/format";
+import { TokenIcon } from "@/components/ui/token-icon";
 import { DIVIDER, EXPLORER_TX } from "./table-shared";
 
 const SIDE_BADGE: Record<WalletTrade["side"], string> = {
@@ -81,7 +82,15 @@ export function TradesTable({
                     {since(t.timestamp)} ago
                   </td>
                   <td className="px-2 py-1.5 font-mono text-[12px] font-semibold text-ink">
-                    {t.symbol ?? "?"}
+                    <span className="inline-flex items-center gap-1.5">
+                      <TokenIcon
+                        address={t.token_address}
+                        symbol={t.symbol}
+                        className="size-4"
+                        textClassName="text-[8px]"
+                      />
+                      {t.symbol ?? "?"}
+                    </span>
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <span
