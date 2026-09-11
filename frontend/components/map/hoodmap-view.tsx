@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { fetchTokenMap, type TokenMap } from "@/lib/api";
 import { BubbleMap } from "./bubble-map";
 import { ClusterLegend } from "./cluster-legend";
@@ -53,7 +54,10 @@ export function HoodMapView({
   if (loading) {
     return (
       <div className="grid h-full min-h-[360px] place-items-center rounded-md border border-line bg-surface/40">
-        <span className="font-mono text-[12px] text-ink-faint">Tracing holders and funders…</span>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="size-6 animate-spin text-lime" />
+          <span className="font-mono text-[12px] text-ink-faint">Tracing holders and funders…</span>
+        </div>
       </div>
     );
   }
