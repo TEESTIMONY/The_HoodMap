@@ -34,6 +34,33 @@ function requirePoolRef(raw: string): string {
   throw err;
 }
 
+/**
+ * Bounds how long the HTTP response waits on an on-demand RPC computation
+ * (pool state reads, price discovery, ...). viem's own per-call timeout
+ * (20s) times a multicall-then-fallback-to-individual-calls retry path can
+ * still add up past a minute on a slow/misbehaving RPC endpoint — long
+ * enough that the client (or a proxy in front of it) gives up and resets
+ * the connection first, which is worse than just serving what we already
+ * have. This doesn't cancel the underlying work — it keeps running and its
+ * result (if any) still lands in the DB for the next request — it only
+ * stops the response from blocking on it.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
 const DB_ERROR_CODES = new Set([
   "57014", // statement_timeout
   "53300", // too_many_connections
@@ -195,7 +222,7 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address", async (req, 
 
   if (!result.rows[0]) {
     // Never seen it — resolve identity straight from the chain (one RPC call).
-    const discovered = await discoverTokenOnDemand(address).catch(() => null);
+    const discovered = await withTimeout(discoverTokenOnDemand(address), 12_000).catch(() => null);
     if (!discovered) return reply.status(404).send({ error: "not_an_erc20_or_unreachable" });
     result = await query(TOKEN_DETAIL_SQL, [config.CHAIN_ID, address]);
     if (!result.rows[0]) return reply.status(404).send({ error: "token_not_found" });
@@ -205,9 +232,12 @@ app.get<{ Params: { address: string } }>("/api/v1/tokens/:address", async (req, 
   // Bounded RPC on the request path *only* when there's nothing useful to show:
   // no price yet, or stats gone stale (worker covers traded tokens every 45s, so
   // this mostly fires for tokens with liquidity that haven't traded recently).
+  // Capped at 12s: a multicall that falls back to individual calls on a slow
+  // RPC endpoint can otherwise run past a minute (see EADDRINUSE/ECONNRESET
+  // reports) — better to serve the identity/stale row than hang the request.
   const ageMs = row.stats_updated_at ? Date.now() - new Date(row.stats_updated_at).getTime() : Infinity;
   if (row.price == null || ageMs > 600_000) {
-    const computed = await computeTokenStats(address).catch(() => false);
+    const computed = await withTimeout(computeTokenStats(address), 12_000).catch(() => false);
     if (computed) result = await query(TOKEN_DETAIL_SQL, [config.CHAIN_ID, address]);
   }
   return result.rows[0];
