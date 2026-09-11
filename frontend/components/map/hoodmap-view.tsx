@@ -27,14 +27,33 @@ export function HoodMapView({
 
   useEffect(() => {
     const ac = new AbortController();
+    let cancelled = false;
+    let delayTimer: ReturnType<typeof setTimeout> | undefined;
+    const start = Date.now();
+    // A token with no indexed holders resolves in a couple of milliseconds —
+    // too fast to actually see the spinner, so an empty result reads as
+    // "nothing happened" instead of "we checked." Floor the loading state at
+    // ~450ms so it always registers as a real check.
+    const MIN_LOADING_MS = 450;
     setLoading(true);
     setMap(null);
     setSelected(null);
     fetchTokenMap(tokenAddress, ac.signal)
-      .then(setMap)
+      .then((d) => {
+        if (!cancelled) setMap(d);
+      })
       .catch(() => {})
-      .finally(() => setLoading(false));
-    return () => ac.abort();
+      .finally(() => {
+        if (cancelled) return;
+        const remaining = MIN_LOADING_MS - (Date.now() - start);
+        if (remaining > 0) delayTimer = setTimeout(() => !cancelled && setLoading(false), remaining);
+        else setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(delayTimer);
+      ac.abort();
+    };
   }, [tokenAddress]);
 
   const clusterOrder = useMemo(() => map?.clusters.map((c) => c.id) ?? [], [map]);
