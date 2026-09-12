@@ -19,7 +19,7 @@ fi
 echo "== cloning repo =="
 if [ ! -d "$APP_DIR/.git" ]; then
   sudo mkdir -p "$APP_DIR"
-  sudo git clone <YOUR_REPO_URL> "$APP_DIR"
+  sudo git clone https://github.com/TEESTIMONY/The_HoodMap.git "$APP_DIR"
 fi
 cd "$APP_DIR"
 
