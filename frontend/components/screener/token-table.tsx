@@ -4,12 +4,12 @@ import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TokenRow } from "@/lib/api";
-import { count, priceUsd, shortAddr, usdCompact } from "@/lib/format";
+import { count, priceUsd, shortAddr, since, usdCompact } from "@/lib/format";
 import { CopyButton } from "@/components/ui/copy-button";
 import { TokenIcon } from "@/components/ui/token-icon";
 
 const COLS =
-  "grid-cols-[44px_minmax(180px,2fr)_repeat(5,minmax(96px,1fr))_minmax(108px,1fr)]";
+  "grid-cols-[44px_minmax(180px,2fr)_repeat(6,minmax(96px,1fr))_minmax(108px,1fr)]";
 
 function Head({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" | "center" }) {
   return (
@@ -74,6 +74,7 @@ function Row({ rank, r }: { rank: number; r: TokenRow }) {
       </div>
 
       <Cell>{priceUsd(r.price)}</Cell>
+      <Cell className="text-ink-muted">{since(r.first_seen)}</Cell>
       <Cell>{usdCompact(r.fdv ?? r.market_cap)}</Cell>
       <Cell>{usdCompact(r.liquidity_usd)}</Cell>
       <Cell>{usdCompact(r.volume_24h)}</Cell>
@@ -93,7 +94,7 @@ function SkeletonRow() {
         <span className="size-7 shrink-0 animate-pulse rounded-full bg-surface-3" />
         <span className="h-3 w-24 animate-pulse rounded bg-surface-3" />
       </div>
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <div key={i} className="px-3 py-4">
           <span className="ml-auto block h-3 w-14 animate-pulse rounded bg-surface-3" />
         </div>
@@ -105,11 +106,12 @@ function SkeletonRow() {
 export function TokenTable({ rows, loading }: { rows: TokenRow[]; loading: boolean }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface/40">
-      <div className="min-w-[860px]">
+      <div className="min-w-[960px]">
         <div className={cn("grid border-b border-line-strong bg-surface-2/40", COLS)}>
           <Head align="center">#</Head>
           <Head align="left">Token</Head>
           <Head>Price</Head>
+          <Head>Age</Head>
           <Head>FDV</Head>
           <Head>Liquidity</Head>
           <Head>Vol 24h</Head>

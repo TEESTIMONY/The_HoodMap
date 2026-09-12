@@ -23,6 +23,7 @@ export interface TokenRow {
   pool_count: number | null;
   price_confidence: "high" | "medium" | "low" | null;
   last_trade_at: string | null;
+  first_seen: string | null;
 }
 
 export interface MarketStats {
@@ -35,13 +36,12 @@ export interface MarketStats {
   weth_usd: string | null;
 }
 
-export type TokenSort = "volume" | "liquidity" | "fdv" | "recent";
+export type TokenSort = "volume" | "liquidity" | "fdv" | "recent" | "new";
 
 export interface TokenDetail extends TokenRow {
   total_supply: string | null;
   logo_url: string | null;
   created_block: string | null;
-  first_seen: string | null;
   volume_1h: string | null;
   stats_updated_at: string | null;
 }

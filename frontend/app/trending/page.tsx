@@ -19,6 +19,7 @@ const SORTS: { key: TokenSort; label: string }[] = [
   { key: "liquidity", label: "Liquidity" },
   { key: "fdv", label: "FDV" },
   { key: "recent", label: "Recently traded" },
+  { key: "new", label: "Newly created" },
 ];
 
 function Stat({ label, value }: { label: string; value: string }) {

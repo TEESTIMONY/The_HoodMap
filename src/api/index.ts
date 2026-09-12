@@ -723,12 +723,14 @@ app.get<{ Querystring: { limit?: string; sort?: string } }>("/api/v1/tokens", as
     req.query.sort === "liquidity" ? "ts.liquidity_usd" :
     req.query.sort === "fdv" ? "ts.fdv" :
     req.query.sort === "recent" ? "ts.last_trade_at" :
+    req.query.sort === "new" ? "t.created_at" :
     "ts.volume_24h";
   // HoodMap only covers memecoins: excludes the wrapped native asset, the
   // house stablecoin, and Robinhood's own tokenized stocks/ETFs — see
   // classifyToken() in src/decode/entities.ts for how that's decided.
   const result = await query(
     `SELECT t.address, t.symbol, t.name, t.decimals, t.token_type, t.verified,
+            t.created_at AS first_seen,
             ts.price, ts.price_native, ts.market_cap, ts.fdv, ts.liquidity_usd,
             ts.volume_24h, ts.volume_6h, ts.buy_count_24h, ts.sell_count_24h,
             ts.pool_count, ts.price_confidence, ts.last_trade_at
