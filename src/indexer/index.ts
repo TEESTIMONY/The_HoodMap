@@ -23,8 +23,18 @@ const MAX_BLOCK_ATTEMPTS = 5;
  * patient, uncapped-attempt backoff instead of crashing the indexer.
  */
 function isRateLimited(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes("429") || msg.includes("Too Many Requests");
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  // Alchemy (and others) don't always surface this as an HTTP 429 — a
+  // JSON-RPC-level "over capacity" error (e.g. from eth_getTransactionReceipt
+  // in the per-tx fallback path) carries none of "429"/"Too Many Requests"
+  // but is the exact same account-level throttling, not a bad block.
+  return (
+    msg.includes("429") ||
+    msg.includes("too many requests") ||
+    msg.includes("compute units per second") ||
+    msg.includes("exceeded its compute units") ||
+    msg.includes("rate limit")
+  );
 }
 
 let running = true;
