@@ -15,6 +15,18 @@ import type { Block as ViemBlock, TransactionReceipt as ViemReceipt } from "viem
 const RECEIPT_CONCURRENCY = 8;
 const MAX_BLOCK_ATTEMPTS = 5;
 
+/**
+ * A 429 from the RPC provider isn't a bad block — it's the account-level rate
+ * limit, and restarting the process (what running out of MAX_BLOCK_ATTEMPTS
+ * does) doesn't relieve it, it just resets the backoff counter and immediately
+ * re-triggers the same 429. Detect it so it gets connectWithRetry-style
+ * patient, uncapped-attempt backoff instead of crashing the indexer.
+ */
+function isRateLimited(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes("429") || msg.includes("Too Many Requests");
+}
+
 let running = true;
 /** Flips permanently once we learn the RPC doesn't support eth_getBlockReceipts. */
 let blockReceiptsUnsupported = false;
@@ -129,6 +141,18 @@ async function processBlockWithRetry(blockNumber: bigint): Promise<bigint> {
     try {
       return await processBlock(blockNumber);
     } catch (err) {
+      if (isRateLimited(err)) {
+        // Uncapped attempts, capped backoff — same shape as connectWithRetry.
+        // Counting these against MAX_BLOCK_ATTEMPTS just crash-loops the
+        // process every ~15s without ever actually waiting out the limit.
+        const backoffMs = Math.min(30_000, 1_000 * 2 ** (attempt - 1));
+        logger.warn(
+          { block: blockNumber.toString(), attempt, backoffMs },
+          "rate limited by RPC provider, backing off"
+        );
+        await sleep(backoffMs);
+        continue;
+      }
       if (attempt >= MAX_BLOCK_ATTEMPTS) {
         logger.error({ block: blockNumber.toString(), err }, "block failed after max retries");
         throw err;
@@ -209,7 +233,7 @@ async function main(): Promise<void> {
 
   while (running) {
     if (cursor > cachedTip) {
-      cachedTip = await httpClient.getBlockNumber();
+      cachedTip = await connectWithRetry(() => httpClient.getBlockNumber(), "refresh chain tip");
       if (cursor > cachedTip) {
         await sleep(config.INDEXER_POLL_INTERVAL_MS);
         continue;
