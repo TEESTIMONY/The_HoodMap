@@ -1,0 +1,24 @@
+[Unit]
+Description=HoodMap statistics worker (periodic aggregation)
+After=network-online.target hoodmap-indexer.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hoodmap
+WorkingDirectory=/opt/hoodmap
+EnvironmentFile=/opt/hoodmap/.env
+ExecStart=/usr/bin/node dist/workers/statistics.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hoodmap-stats
+
+MemoryMax=250M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/hoodmap
+
+[Install]
+WantedBy=multi-user.target

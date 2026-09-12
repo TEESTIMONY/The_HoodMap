@@ -25,7 +25,8 @@
     "test": "tsc -p tsconfig.test.json && node --test \"dist/**/*.test.js\"",
     "start:migrate": "node dist/db/migrate.js",
     "start:indexer": "node dist/indexer/index.js",
-    "start:api": "node dist/api/index.js"
+    "start:api": "node dist/api/index.js",
+    "start:stats": "node dist/workers/statistics.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.0",

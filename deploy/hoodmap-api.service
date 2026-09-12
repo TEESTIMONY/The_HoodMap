@@ -1,0 +1,25 @@
+[Unit]
+Description=HoodMap API (Fastify)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hoodmap
+WorkingDirectory=/opt/hoodmap
+EnvironmentFile=/opt/hoodmap/.env
+Environment=API_PORT=3001
+ExecStart=/usr/bin/node dist/api/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hoodmap-api
+
+MemoryMax=300M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/hoodmap
+
+[Install]
+WantedBy=multi-user.target

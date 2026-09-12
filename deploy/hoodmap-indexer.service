@@ -1,0 +1,27 @@
+[Unit]
+Description=HoodMap indexer (block ingestion)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hoodmap
+WorkingDirectory=/opt/hoodmap
+EnvironmentFile=/opt/hoodmap/.env
+ExecStart=/usr/bin/node dist/indexer/index.js
+Restart=always
+RestartSec=5
+# transient RPC/DNS blips are already retried inside the process (connectWithRetry);
+# this restart is the outer safety net for a hard crash, not the primary defense.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hoodmap-indexer
+
+# modest hardening — e2-micro has 1 shared vCPU / 1GB RAM total across 3 services
+MemoryMax=350M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/hoodmap
+
+[Install]
+WantedBy=multi-user.target
