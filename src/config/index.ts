@@ -18,6 +18,13 @@ const envSchema = z.object({
   // don't need a Redis instance to boot.
   REDIS_URL: z.string().optional().default(""),
   INDEXER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(2000),
+  // How many blocks ahead of the commit cursor to fetch concurrently. The
+  // indexer was latency-bound (one round trip at a time) well under most
+  // RPC providers' actual rate-limit ceiling — raising this overlaps request
+  // latency instead of waiting on it serially. Tune down if the RPC provider
+  // 429s persistently even after the rate-limit backoff; tune up if CPU/DB
+  // are idle while blocks queue up waiting to fetch.
+  INDEXER_FETCH_CONCURRENCY: z.coerce.number().int().positive().default(10),
   API_PORT: z.coerce.number().int().positive().default(3001),
   API_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
   LOG_LEVEL: z.string().default("info"),

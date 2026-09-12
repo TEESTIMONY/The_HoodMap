@@ -91,22 +91,83 @@ async function fetchReceipts(blockNumber: bigint, block: RawBlock): Promise<RawR
   return receipts.map(toRawReceipt);
 }
 
+interface FetchedBlockData {
+  block: RawBlock;
+  receipts: RawReceipt[];
+}
+
+type FetchResult =
+  | { ok: true; data: FetchedBlockData }
+  | { ok: false; error: unknown };
+
+/** +/-25% jitter so concurrently rate-limited fetches don't all retry in lockstep. */
+function withJitter(ms: number): number {
+  return Math.round(ms * (0.75 + Math.random() * 0.5));
+}
+
 /**
- * Processes exactly one block. Returns the next block number to process —
- * normally `blockNumber + 1`, or an earlier number if a reorg was detected
- * and the checkpoint had to be rewound.
+ * Network I/O only for one block — no DB writes, no reorg check. Safe to run
+ * for many block numbers concurrently; the ordering-sensitive work happens in
+ * commitBlock() instead.
  */
-async function processBlock(blockNumber: bigint): Promise<bigint> {
+async function fetchBlockData(blockNumber: bigint): Promise<FetchedBlockData> {
   const viemBlock = (await httpClient.getBlock({
     blockNumber,
     includeTransactions: true,
   })) as unknown as ViemBlock<bigint, true>;
   const block = toRawBlock(viemBlock);
+  const receipts = await fetchReceipts(blockNumber, block);
+  return { block, receipts };
+}
 
+/**
+ * Same retry policy as before a 429 gets uncapped attempts with capped
+ * backoff (connectWithRetry-style — restarting doesn't relieve an
+ * account-level rate limit); other errors give up after MAX_BLOCK_ATTEMPTS.
+ * Never *rejects*, though — this sits unawaited in the prefetch window
+ * (see runIndexer below) until its turn to commit, and an unhandled
+ * rejection there would crash the process before anyone gets to handle it.
+ */
+async function fetchBlockWithRetry(blockNumber: bigint): Promise<FetchResult> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return { ok: true, data: await fetchBlockData(blockNumber) };
+    } catch (err) {
+      if (isRateLimited(err)) {
+        const backoffMs = withJitter(Math.min(30_000, 1_000 * 2 ** (attempt - 1)));
+        logger.warn(
+          { block: blockNumber.toString(), attempt, backoffMs },
+          "rate limited by RPC provider, backing off"
+        );
+        await sleep(backoffMs);
+        continue;
+      }
+      if (attempt >= MAX_BLOCK_ATTEMPTS) {
+        logger.error({ block: blockNumber.toString(), err }, "block fetch failed after max retries");
+        return { ok: false, error: err };
+      }
+      const backoffMs = 500 * 2 ** attempt;
+      logger.warn(
+        { block: blockNumber.toString(), attempt, backoffMs, err: (err as Error).message },
+        "block fetch failed, retrying"
+      );
+      await sleep(backoffMs);
+    }
+  }
+}
+
+/**
+ * Reorg check + persist + decode for one already-fetched block. Must run
+ * strictly in block-number order for every caller — this is what advances
+ * the checkpoint, and an out-of-order advance would let a skipped block
+ * silently never get indexed. Returns the next block number to commit:
+ * normally `blockNumber + 1`, or an earlier number if a reorg was detected
+ * and the checkpoint had to be rewound.
+ */
+async function commitBlock(blockNumber: bigint, { block, receipts }: FetchedBlockData): Promise<bigint> {
   const resumeFrom = await reconcileBeforeBlock(blockNumber, block.parentHash);
   if (resumeFrom < blockNumber) return resumeFrom;
 
-  const receipts = await fetchReceipts(blockNumber, block);
   await saveBlock(block, receipts);
 
   logger.info(
@@ -136,37 +197,6 @@ async function processBlock(blockNumber: bigint): Promise<bigint> {
   return blockNumber + 1n;
 }
 
-async function processBlockWithRetry(blockNumber: bigint): Promise<bigint> {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await processBlock(blockNumber);
-    } catch (err) {
-      if (isRateLimited(err)) {
-        // Uncapped attempts, capped backoff — same shape as connectWithRetry.
-        // Counting these against MAX_BLOCK_ATTEMPTS just crash-loops the
-        // process every ~15s without ever actually waiting out the limit.
-        const backoffMs = Math.min(30_000, 1_000 * 2 ** (attempt - 1));
-        logger.warn(
-          { block: blockNumber.toString(), attempt, backoffMs },
-          "rate limited by RPC provider, backing off"
-        );
-        await sleep(backoffMs);
-        continue;
-      }
-      if (attempt >= MAX_BLOCK_ATTEMPTS) {
-        logger.error({ block: blockNumber.toString(), err }, "block failed after max retries");
-        throw err;
-      }
-      const backoffMs = 500 * 2 ** attempt;
-      logger.warn(
-        { block: blockNumber.toString(), attempt, backoffMs, err: (err as Error).message },
-        "block processing failed, retrying"
-      );
-      await sleep(backoffMs);
-    }
-  }
-}
-
 // Startup dependencies (DB, RPC) can be briefly unreachable — a DNS blip, the
 // laptop waking from sleep, Supabase's pooler warming up. Unlike a bad block
 // (which has MAX_BLOCK_ATTEMPTS and gives up), there's nothing useful to do
@@ -177,7 +207,7 @@ async function connectWithRetry<T>(fn: () => Promise<T>, label: string): Promise
     try {
       return await fn();
     } catch (err) {
-      const backoffMs = Math.min(30_000, 1_000 * 2 ** (attempt - 1));
+      const backoffMs = withJitter(Math.min(30_000, 1_000 * 2 ** (attempt - 1)));
       logger.warn(
         { attempt, backoffMs, err: (err as Error).message },
         `${label} failed, retrying`
@@ -231,6 +261,22 @@ async function main(): Promise<void> {
     "resuming from checkpoint"
   );
 
+  // Sliding window: keep up to INDEXER_FETCH_CONCURRENCY block fetches
+  // in flight ahead of the commit cursor, overlapping RPC round-trip latency
+  // instead of paying it one block at a time. Commits (reorg check + DB
+  // write + checkpoint advance) still run strictly in order — reorg
+  // detection and checkpoint correctness both depend on that, so only the
+  // network fetch is parallelized, not the write path.
+  const inFlight = new Map<bigint, Promise<FetchResult>>();
+  let nextToFetch = cursor;
+
+  function fillWindow(): void {
+    while (inFlight.size < config.INDEXER_FETCH_CONCURRENCY && nextToFetch <= cachedTip) {
+      inFlight.set(nextToFetch, fetchBlockWithRetry(nextToFetch));
+      nextToFetch += 1n;
+    }
+  }
+
   while (running) {
     if (cursor > cachedTip) {
       cachedTip = await connectWithRetry(() => httpClient.getBlockNumber(), "refresh chain tip");
@@ -239,7 +285,30 @@ async function main(): Promise<void> {
         continue;
       }
     }
-    cursor = await processBlockWithRetry(cursor);
+
+    fillWindow();
+
+    const pending = inFlight.get(cursor);
+    if (!pending) {
+      // Shouldn't happen given the invariants above (nextToFetch is always
+      // >= cursor, and fillWindow just ran) — but if it ever does, don't
+      // busy-spin the CPU while things sort themselves out.
+      await sleep(50);
+      continue;
+    }
+    inFlight.delete(cursor);
+    const result = await pending;
+    if (!result.ok) throw result.error; // genuinely bad block — crash, let systemd restart
+
+    const nextCursor = await commitBlock(cursor, result.data);
+    if (nextCursor < cursor) {
+      // Reorg rewound the checkpoint. Every other in-flight fetch was for a
+      // block number that may now be on the wrong fork — discard the whole
+      // window and refill fresh from the rewound point.
+      inFlight.clear();
+      nextToFetch = nextCursor;
+    }
+    cursor = nextCursor;
   }
 }
 
