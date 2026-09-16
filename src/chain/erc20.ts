@@ -1,5 +1,5 @@
 import { hexToString, parseAbi, type Hex } from "viem";
-import { logsClient } from "../indexer/rpcClient.js";
+import { metadataClient } from "../indexer/rpcClient.js";
 import { contracts } from "../dex/contracts.js";
 
 const STRING_ABI = parseAbi([
@@ -58,7 +58,7 @@ export async function fetchTokenMetadata(address: Hex): Promise<TokenMetadata> {
 
   let results: { status: "success" | "failure"; result?: unknown }[];
   try {
-    results = (await logsClient.multicall({
+    results = (await metadataClient.multicall({
       contracts: calls,
       allowFailure: true,
       multicallAddress: contracts.multicall3,
@@ -67,7 +67,7 @@ export async function fetchTokenMetadata(address: Hex): Promise<TokenMetadata> {
     results = await Promise.all(
       calls.map(async (c) => {
         try {
-          return { status: "success" as const, result: await logsClient.readContract(c) };
+          return { status: "success" as const, result: await metadataClient.readContract(c) };
         } catch {
           return { status: "failure" as const };
         }
@@ -82,7 +82,7 @@ export async function fetchTokenMetadata(address: Hex): Promise<TokenMetadata> {
   // bytes32 fallback for name/symbol
   if ((!outName || !outSymbol) && decimals.status === "success") {
     try {
-      const b32 = await logsClient.multicall({
+      const b32 = await metadataClient.multicall({
         contracts: [
           { address, abi: BYTES32_ABI, functionName: "name" },
           { address, abi: BYTES32_ABI, functionName: "symbol" },

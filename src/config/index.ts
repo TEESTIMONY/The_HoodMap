@@ -10,6 +10,12 @@ const envSchema = z.object({
   // Robinhood RPC allows full-range getLogs (10k-result cap) where Alchemy's
   // free tier caps at a 10-block range. Falls back to RPC_HTTP_URL.
   BACKFILL_RPC_URL: z.string().url().optional(),
+  // Per-token metadata reads (name/symbol/decimals via multicall) during live
+  // decode — small eth_call-shaped requests, not wide getLogs scans, so they
+  // don't need BACKFILL_RPC_URL's range headroom. Kept on a separate client so
+  // they don't compete with the block-fetch pipeline or the backfill scanner
+  // for the same endpoint's request budget. Falls back to RPC_HTTP_URL.
+  METADATA_RPC_URL: z.string().url().optional(),
   BLOCKSCOUT_API_URL: z.string().url().optional(),
   DATABASE_URL: z.string(),
   DATABASE_SSL: z.enum(["disable", "require", "no-verify"]).default("disable"),

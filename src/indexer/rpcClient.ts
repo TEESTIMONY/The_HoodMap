@@ -49,3 +49,19 @@ export const logsClient: PublicClient = createPublicClient({
     timeout: 30_000,
   }),
 });
+
+/**
+ * Dedicated client for per-token metadata reads (name/symbol/decimals via
+ * multicall) triggered synchronously during live decode whenever a block
+ * introduces a new token. These are small eth_call-shaped requests, not wide
+ * scans — deliberately kept off logsClient/BACKFILL_RPC_URL so they don't
+ * queue behind (or add to) that endpoint's load from the backfill scanner and
+ * the main block-fetch pipeline. Falls back to the primary HTTP endpoint.
+ */
+export const metadataClient: PublicClient = createPublicClient({
+  chain: robinhoodChain,
+  transport: http(config.METADATA_RPC_URL ?? config.RPC_HTTP_URL, {
+    retryCount: 2,
+    timeout: 20_000,
+  }),
+});
