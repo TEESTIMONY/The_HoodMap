@@ -6,6 +6,7 @@ import { ArrowUpRight, Maximize2, ShieldCheck, Waypoints } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
 import { ScanInput } from "@/components/site/scan-input";
+import { DataPaused, DATA_PAUSED } from "@/components/site/data-paused";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DexChart } from "@/components/scan/dex-chart";
 import { MarketStats } from "@/components/scan/market-stats";
@@ -86,6 +87,11 @@ export default function TokenScanPage() {
       setState("invalid");
       return;
     }
+    if (DATA_PAUSED) {
+      setState("ready");
+      setSwapsLoading(false);
+      return;
+    }
     const ac = new AbortController();
     setState("loading");
     setSwapsLoading(true);
@@ -144,7 +150,9 @@ export default function TokenScanPage() {
           </p>
         )}
 
-        {(state === "loading" || state === "ready") && (
+        {(state === "loading" || state === "ready") && DATA_PAUSED && <DataPaused />}
+
+        {(state === "loading" || state === "ready") && !DATA_PAUSED && (
           <div className="mt-2 flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <div className="grid gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_380px]">
               {/* left — chart + tabs + table; never its own scrollbar */}

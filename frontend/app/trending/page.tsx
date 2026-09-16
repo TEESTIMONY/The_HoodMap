@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
 import { Footerdemo } from "@/components/ui/footer-section";
+import { DataPaused, DATA_PAUSED } from "@/components/site/data-paused";
 import { TokenTable } from "@/components/screener/token-table";
 import {
   fetchStats,
@@ -39,6 +40,7 @@ export default function TrendingPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    if (DATA_PAUSED) return;
     const ac = new AbortController();
     fetchStats(ac.signal)
       .then(setStats)
@@ -47,6 +49,10 @@ export default function TrendingPage() {
   }, []);
 
   useEffect(() => {
+    if (DATA_PAUSED) {
+      setLoading(false);
+      return;
+    }
     const ac = new AbortController();
     setLoading(true);
     setErr(null);
@@ -76,43 +82,49 @@ export default function TrendingPage() {
           </p>
         </div>
 
-        <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Tokens tracked" value={stats ? count(stats.tokens) : "…"} />
-          <Stat label="Trading pairs" value={stats ? count(stats.pools) : "…"} />
-          <Stat label="Total liquidity" value={stats ? usdCompact(stats.liquidity_usd) : "…"} />
-          <Stat label="WETH price" value={stats?.weth_usd ? priceUsd(stats.weth_usd) : "…"} />
-        </div>
+        {DATA_PAUSED ? (
+          <DataPaused />
+        ) : (
+          <>
+            <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Tokens tracked" value={stats ? count(stats.tokens) : "…"} />
+              <Stat label="Trading pairs" value={stats ? count(stats.pools) : "…"} />
+              <Stat label="Total liquidity" value={stats ? usdCompact(stats.liquidity_usd) : "…"} />
+              <Stat label="WETH price" value={stats?.weth_usd ? priceUsd(stats.weth_usd) : "…"} />
+            </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-2">
-          {SORTS.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => setSort(s.key)}
-              className={cn(
-                "rounded-full border px-4 py-2 font-mono text-[12px] transition-colors",
-                sort === s.key
-                  ? "border-lime/50 bg-lime/10 text-lime"
-                  : "border-line-strong text-ink-muted hover:text-ink"
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-          <span className="ml-auto font-mono text-[11px] text-ink-faint">
-            {loading ? "Loading…" : `Ranked by ${SORTS.find((s) => s.key === sort)?.label.toLowerCase()}`}
-          </span>
-        </div>
+            <div className="mt-8 flex flex-wrap items-center gap-2">
+              {SORTS.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setSort(s.key)}
+                  className={cn(
+                    "rounded-full border px-4 py-2 font-mono text-[12px] transition-colors",
+                    sort === s.key
+                      ? "border-lime/50 bg-lime/10 text-lime"
+                      : "border-line-strong text-ink-muted hover:text-ink"
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+              <span className="ml-auto font-mono text-[11px] text-ink-faint">
+                {loading ? "Loading…" : `Ranked by ${SORTS.find((s) => s.key === sort)?.label.toLowerCase()}`}
+              </span>
+            </div>
 
-        {err && (
-          <p className="mt-4 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 font-mono text-[12px] text-danger">
-            {err}
-          </p>
+            {err && (
+              <p className="mt-4 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 font-mono text-[12px] text-danger">
+                {err}
+              </p>
+            )}
+
+            <div className="mt-4">
+              <TokenTable rows={rows} loading={loading} />
+            </div>
+          </>
         )}
-
-        <div className="mt-4">
-          <TokenTable rows={rows} loading={loading} />
-        </div>
       </div>
 
       <Footerdemo />
