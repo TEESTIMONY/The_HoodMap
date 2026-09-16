@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Maximize2 } from "lucide-react";
+import { ImageIcon, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
 import { ScanInput } from "@/components/site/scan-input";
@@ -10,6 +10,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { Modal } from "@/components/ui/modal";
 import { WalletSummaryCard } from "@/components/wallet/wallet-summary";
 import { WinRateCard } from "@/components/wallet/win-rate-card";
+import { WalletShareCard } from "@/components/wallet/wallet-share-card";
 import { PositionsTable } from "@/components/wallet/positions-table";
 import { TradesTable } from "@/components/wallet/trades-table";
 import { TransactionsTable } from "@/components/wallet/transactions-table";
@@ -43,6 +44,7 @@ export default function WalletPassportPage() {
   const [rowsLoading, setRowsLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("positions");
   const [expandModal, setExpandModal] = useState(false);
+  const [shareModal, setShareModal] = useState(false);
 
   useEffect(() => {
     if (!address) return;
@@ -164,9 +166,21 @@ export default function WalletPassportPage() {
                     {address.slice(2, 3).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <h1 className="truncate font-display text-lg font-bold text-ink">
-                      Wallet Passport
-                    </h1>
+                    <div className="flex items-center gap-2">
+                      <h1 className="truncate font-display text-lg font-bold text-ink">
+                        Wallet Passport
+                      </h1>
+                      {w && (
+                        <button
+                          type="button"
+                          onClick={() => setShareModal(true)}
+                          className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line bg-surface-3 px-2 py-1 font-mono text-[11px] uppercase tracking-wide text-ink-muted transition-colors hover:border-lime/40 hover:text-lime"
+                        >
+                          <ImageIcon className="size-3.5" />
+                          Share
+                        </button>
+                      )}
+                    </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-ink-faint">
                       <span>{shortAddr(address)}</span>
                       <CopyButton value={address} label="wallet address" />
@@ -211,6 +225,12 @@ export default function WalletPassportPage() {
           {tab === "transactions" && (
             <TransactionsTable wallet={address} transactions={txs} loading={rowsLoading} expanded />
           )}
+        </Modal>
+      )}
+
+      {shareModal && w && (
+        <Modal title="Share wallet card" onClose={() => setShareModal(false)}>
+          <WalletShareCard address={address} w={w} />
         </Modal>
       )}
     </main>
