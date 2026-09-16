@@ -31,7 +31,7 @@ export function Community() {
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <a
-            href="https://x.com"
+            href="https://x.com/hoodmaptech"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2.5 rounded-full border border-line-strong bg-surface/60 px-5 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40 hover:text-lime"
@@ -40,7 +40,7 @@ export function Community() {
             Follow on X
           </a>
           <a
-            href="https://t.me"
+            href="https://t.me/hoodmaptech"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2.5 rounded-full border border-line-strong bg-surface/60 px-5 py-3 font-mono text-[14px] text-ink backdrop-blur-md transition-colors hover:border-lime/40 hover:text-lime"

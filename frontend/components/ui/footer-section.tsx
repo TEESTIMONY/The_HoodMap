@@ -32,8 +32,8 @@ const SOCIALS: {
   href: string;
   label: string;
 }[] = [
-  { icon: XIcon, href: "https://x.com", label: "Follow us on X" },
-  { icon: Send, href: "https://t.me", label: "Join us on Telegram" },
+  { icon: XIcon, href: "https://x.com/hoodmaptech", label: "Follow us on X" },
+  { icon: Send, href: "https://t.me/hoodmaptech", label: "Join us on Telegram" },
   { icon: MessageCircle, href: "https://discord.com", label: "Chat on Discord" },
   { icon: Github, href: "https://github.com", label: "Source on GitHub" },
 ];

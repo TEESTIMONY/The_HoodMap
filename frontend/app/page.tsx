@@ -32,8 +32,8 @@ const HERO_CHIPS = [
 ];
 
 const SOCIALS = [
-  { icon: XIcon, href: "https://x.com", label: "X" },
-  { icon: Send, href: "https://t.me", label: "Telegram" },
+  { icon: XIcon, href: "https://x.com/hoodmaptech", label: "X" },
+  { icon: Send, href: "https://t.me/hoodmaptech", label: "Telegram" },
   { icon: MessageCircle, href: "https://discord.com", label: "Discord" },
   { icon: Github, href: "https://github.com", label: "GitHub" },
 ];
