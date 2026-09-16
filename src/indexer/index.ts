@@ -28,12 +28,22 @@ function isRateLimited(err: unknown): boolean {
   // JSON-RPC-level "over capacity" error (e.g. from eth_getTransactionReceipt
   // in the per-tx fallback path) carries none of "429"/"Too Many Requests"
   // but is the exact same account-level throttling, not a bad block.
+  //
+  // The public RPC's bot-protection (Cloudflare) is the same story from a
+  // different vendor: it answers a burst of requests with an HTTP 403 and an
+  // HTML "Just a moment..." challenge page instead of a 429. It's throttling,
+  // not a bad block, and it clears on its own within seconds if we back off —
+  // MAX_BLOCK_ATTEMPTS's quick-then-crash path was hitting this and taking
+  // the whole indexer down over something that resolves itself.
   return (
     msg.includes("429") ||
     msg.includes("too many requests") ||
     msg.includes("compute units per second") ||
     msg.includes("exceeded its compute units") ||
-    msg.includes("rate limit")
+    msg.includes("rate limit") ||
+    msg.includes("status: 403") ||
+    msg.includes("just a moment") ||
+    msg.includes("cloudflare")
   );
 }
 
