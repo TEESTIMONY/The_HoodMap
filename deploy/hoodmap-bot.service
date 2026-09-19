@@ -1,0 +1,29 @@
+[Unit]
+Description=HoodMap Telegram bot (lookups via the local API)
+After=network-online.target hoodmap-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hoodmap
+WorkingDirectory=/opt/hoodmap
+EnvironmentFile=/opt/hoodmap/.env
+ExecStart=/usr/bin/node dist/bot/index.js
+# on-failure (not always): a clean stop stays stopped, a crash comes back.
+# Exit 2 = missing/rejected TELEGRAM_BOT_TOKEN — restarting can't fix that, so
+# don't crash-loop; fix .env and `systemctl restart hoodmap-bot`.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hoodmap-bot
+
+# raw fetch + one poll loop; no DB pool. Small next to the other three services.
+MemoryMax=150M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/hoodmap
+
+[Install]
+WantedBy=multi-user.target

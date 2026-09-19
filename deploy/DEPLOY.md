@@ -117,6 +117,25 @@ actually matters — an e2-micro can OOM-kill a process under load, and
 `Restart=always` recovers it, but you won't know it *happened* without something
 watching from outside.
 
+## 8. Telegram bot (optional)
+
+A lookups bot (`/scan`, `/wallet`, `/trending`) that calls the same API over localhost.
+
+1. In Telegram, message **@BotFather** → `/newbot` → copy the token. It's a credential: put it
+   straight into the VM's `.env`, never in git or chat.
+2. On the VM:
+   ```bash
+   sudo nano /opt/hoodmap/.env      # add: TELEGRAM_BOT_TOKEN=<token>
+   sudo cp /opt/hoodmap/deploy/hoodmap-bot.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now hoodmap-bot
+   journalctl -u hoodmap-bot -f     # expect: "telegram bot started"
+   ```
+3. Only **one** process may poll a given token — don't also run `npm run dev:bot` locally with
+   the production token (Telegram answers the second poller with a 409).
+4. Optional, in BotFather: `/setcommands` →
+   `scan - Scan a token`, `wallet - Wallet P&L`, `trending - Top memecoins`, `help - What this bot does`.
+
 ## Updating after a code change
 
 ```bash
@@ -124,5 +143,5 @@ cd /opt/hoodmap
 sudo -u hoodmap git pull
 sudo -u hoodmap npm ci
 sudo -u hoodmap npm run build
-sudo systemctl restart hoodmap-indexer hoodmap-api hoodmap-stats
+sudo systemctl restart hoodmap-indexer hoodmap-api hoodmap-stats   # + hoodmap-bot if enabled
 ```

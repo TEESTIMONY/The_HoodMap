@@ -18,6 +18,7 @@
     "dev:indexer": "tsx watch src/indexer/index.ts",
     "dev:api": "tsx watch src/api/index.ts",
     "dev:stats": "tsx watch src/workers/statistics.ts",
+    "dev:bot": "tsx watch src/bot/index.ts",
     "stats:once": "tsx -e \"import('./src/analytics/statistics.js').then(m=>m.refreshStatistics()).then(r=>{console.log(r);process.exit(0)})\"",
     "compare": "tsx src/scripts/compare.ts",
     "build": "tsc -p tsconfig.json",
@@ -26,7 +27,8 @@
     "start:migrate": "node dist/db/migrate.js",
     "start:indexer": "node dist/indexer/index.js",
     "start:api": "node dist/api/index.js",
-    "start:stats": "node dist/workers/statistics.js"
+    "start:stats": "node dist/workers/statistics.js",
+    "start:bot": "node dist/bot/index.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.0",

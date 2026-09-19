@@ -32,6 +32,14 @@ const envSchema = z.object({
   // are idle while blocks queue up waiting to fetch.
   INDEXER_FETCH_CONCURRENCY: z.coerce.number().int().positive().default(10),
   API_PORT: z.coerce.number().int().positive().default(3001),
+  // Telegram bot (src/bot). Optional so the indexer/API/stats worker boot
+  // without it — only the bot process itself requires the token. Get one from
+  // @BotFather; it's a credential, keep it in .env and never commit it.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  // Where the bot reaches the HoodMap API (same box by default).
+  BOT_API_URL: z.string().url().optional(),
+  // Public site the bot links out to for full scans / the HoodMap view.
+  BOT_SITE_URL: z.string().url().default("https://the-hood-map.vercel.app"),
   API_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(60),
   LOG_LEVEL: z.string().default("info"),
 });
