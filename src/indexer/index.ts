@@ -9,6 +9,8 @@ import { backfillPools } from "../dex/backfillPools.js";
 import { sweepTokenMetadata } from "../decode/entities.js";
 import { pool } from "../db/pool.js";
 import { mapWithConcurrency } from "../lib/concurrency.js";
+import { retryWhile } from "../lib/retry.js";
+import { isTransientDbError } from "../db/errors.js";
 import type { RawBlock, RawReceipt } from "./types.js";
 import type { Block as ViemBlock, TransactionReceipt as ViemReceipt } from "viem";
 
@@ -199,18 +201,23 @@ async function commitBlock(blockNumber: bigint, { block, receipts }: FetchedBloc
     "block indexed"
   );
 
-  // Derived layer (transfers / swaps / liquidity). Best-effort: raw data is
-  // already committed, so a decode failure is logged and left for re-decode
-  // rather than stalling the indexer.
+  // Derived layer (transfers / swaps / liquidity). Best-effort for anything
+  // that isn't the database being down: raw data is already committed, so a
+  // decode failure is logged rather than stalling the indexer. (Note nothing
+  // re-decodes later — a swallowed failure here is that block's swaps/transfers
+  // lost for good, which is why database outages are *not* swallowed: they
+  // propagate so the caller's retry redoes the whole commit. Every write in it
+  // is idempotent, so replaying an already-saved block is safe.)
   try {
     const decoded = await decodeBlock(block, receipts);
     if (decoded.swaps || decoded.transfers || decoded.liquidityEvents) {
       logger.info({ block: blockNumber.toString(), ...decoded }, "block decoded");
     }
   } catch (err) {
+    if (isTransientDbError(err)) throw err;
     logger.error(
       { block: blockNumber.toString(), err: (err as Error).message },
-      "decode failed — raw data safe, re-decode later"
+      "decode failed — raw block saved, its transfers/swaps were skipped (nothing re-decodes)"
     );
   }
 
@@ -320,7 +327,20 @@ async function main(): Promise<void> {
     const result = await pending;
     if (!result.ok) throw result.error; // genuinely bad block — crash, let systemd restart
 
-    const nextCursor = await commitBlock(cursor, result.data);
+    // A database restart/failover drops every connection and takes a minute or
+    // two to come back. Ride it out here — the fetched block is still in hand,
+    // and saveBlock is one atomic, idempotent transaction — rather than letting
+    // the error escape main() and crash the process (which also throws away the
+    // whole prefetch window). Non-database errors still fail immediately.
+    const committing = cursor;
+    const nextCursor = await retryWhile(() => commitBlock(committing, result.data), {
+      shouldRetry: isTransientDbError,
+      onRetry: (err, attempt, waitMs) =>
+        logger.warn(
+          { block: committing.toString(), attempt, waitMs, err: (err as Error).message },
+          "database unavailable while committing block, retrying"
+        ),
+    });
     if (nextCursor < cursor) {
       // Reorg rewound the checkpoint. Every other in-flight fetch was for a
       // block number that may now be on the wrong fork — discard the whole
