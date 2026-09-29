@@ -352,10 +352,24 @@ async function main(): Promise<void> {
   }
 }
 
+// How long shutdown waits for pool.end() before giving up on it.
+// pool.end() only resolves once every checked-out client is released, and a
+// commit can now be retrying a transient DB error with uncapped backoff (see
+// retryWhile above) when SIGTERM arrives — nothing about that retry loop
+// checks `running`, so without a bound here, shutdown would hang until
+// systemd's SIGKILL instead of exiting cleanly. The process is about to die
+// either way; the DB notices the dropped connection the same as any other
+// ungraceful disconnect, and Restart=always brings it straight back.
+const SHUTDOWN_DRAIN_MS = 5_000;
+
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "shutting down indexer");
   running = false;
-  await pool.end().catch(() => undefined);
+  const drained = await Promise.race([
+    pool.end().then(() => true).catch(() => true),
+    sleep(SHUTDOWN_DRAIN_MS).then(() => false),
+  ]);
+  if (!drained) logger.warn({ afterMs: SHUTDOWN_DRAIN_MS }, "pool.end() still waiting on a client, exiting anyway");
   process.exit(0);
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));
