@@ -6,7 +6,6 @@ import { ImageIcon, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SiteNav } from "@/components/site/site-nav";
 import { ScanInput } from "@/components/site/scan-input";
-import { DataPaused, DATA_PAUSED } from "@/components/site/data-paused";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Modal } from "@/components/ui/modal";
 import { WalletSummaryCard } from "@/components/wallet/wallet-summary";
@@ -51,11 +50,6 @@ export default function WalletPassportPage() {
     if (!address) return;
     if (!ADDR.test(address)) {
       setState("invalid");
-      return;
-    }
-    if (DATA_PAUSED) {
-      setState("ready");
-      setRowsLoading(false);
       return;
     }
     const ac = new AbortController();
@@ -113,9 +107,7 @@ export default function WalletPassportPage() {
           </p>
         )}
 
-        {(state === "loading" || state === "ready") && DATA_PAUSED && <DataPaused />}
-
-        {(state === "loading" || state === "ready") && !DATA_PAUSED && (
+        {(state === "loading" || state === "ready") && (
           <div className="mt-2 flex flex-col gap-2 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <div className="grid gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_380px]">
               {/* left — positions / trades / transactions; never its own scrollbar */}
